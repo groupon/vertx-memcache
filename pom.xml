@@ -78,8 +78,8 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/groupon/vertx-memcache.git</connection>
-    <developerConnection>scm:git:git://github.com/groupon/vertx-memcache.git</developerConnection>
+    <connection>scm:git:git@github.com:groupon/vertx-memcache.git</connection>
+    <developerConnection>scm:git:git@github.com:groupon/vertx-memcache.git</developerConnection>
     <url>https://github.com/groupon/vertx-memcache</url>
     <tag>HEAD</tag>
   </scm>
