@@ -1,0 +1,4 @@
+{
+    "includes": "com.groupon.vertx~vertx-utils~${vertx.utils.version}",
+    "preserve-cwd": true
+}
