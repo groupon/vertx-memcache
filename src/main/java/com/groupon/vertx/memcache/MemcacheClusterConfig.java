@@ -50,7 +50,7 @@ public class MemcacheClusterConfig implements MemcacheKeys {
 
         if (eventBusAddressPrefix != null && !eventBusAddressPrefix.isEmpty() && clusters.size() > 0) {
             for (String clusterKey : clusters.fieldNames()) {
-                JsonObject clusterConfig = clusters.getJsonObject(clusterKey, new JsonObject());
+                JsonObject clusterConfig = clusters.getJsonObject(clusterKey, new JsonObject()).copy();
                 clusterConfig.put(EVENT_BUS_ADDRESS_KEY, eventBusAddressPrefix);
                 clusterConfig.put(RETRY_INTERVAL, retryInterval);
                 clusterMap.put(clusterKey, new MemcacheConfig(clusterConfig));
