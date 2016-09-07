@@ -52,7 +52,7 @@ public abstract class Continuum {
             log.debug("getServer", "hashingKey", new String[] {"alorithm", "hash"}, hashAlgorithm.name(), hash);
             Map.Entry<Long, MemcacheServer> serverEntry = servers.ceilingEntry(hash);
             if (serverEntry == null) {
-                return servers.floorEntry(hash).getValue();
+                return servers.firstEntry().getValue();
             }
             return serverEntry.getValue();
         }
