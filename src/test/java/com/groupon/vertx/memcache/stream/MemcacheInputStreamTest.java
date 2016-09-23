@@ -18,14 +18,12 @@ package com.groupon.vertx.memcache.stream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import io.vertx.core.Handler;
@@ -34,7 +32,6 @@ import io.vertx.core.json.JsonObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.groupon.vertx.memcache.MemcacheException;
@@ -50,12 +47,10 @@ import com.groupon.vertx.memcache.command.MemcacheCommandType;
 public class MemcacheInputStreamTest {
     private ConcurrentLinkedQueue<MemcacheCommand> pendingCommands = null;
 
-    ArgumentCaptor<byte[]> captor;
 
     @Before
     public void setUp() throws Exception {
         pendingCommands = new ConcurrentLinkedQueue<>();
-        captor = ArgumentCaptor.forClass(byte[].class);
     }
 
     @After
@@ -67,19 +62,19 @@ public class MemcacheInputStreamTest {
     public void testProcessEmptyBuffer() throws Exception {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
         input.processBuffer(Buffer.buffer());
-        verify(input, never()).addCompletedLine(any(byte[].class));
+        verify(input, never()).addCompletedLine();
     }
 
     @Test
     public void testProcessNullBuffer() throws Exception {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
         input.processBuffer(null);
-        verify(input, never()).addCompletedLine(any(byte[].class));
+        verify(input, never()).addCompletedLine();
     }
 
     @Test
     public void testProcessSingleByteBuffer() throws Exception {
-        MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
+        MemcacheInputStream input = new MemcacheInputStream(pendingCommands);
 
         Buffer buff = Buffer.buffer();
         buff.appendByte((byte) 'a');
@@ -94,7 +89,7 @@ public class MemcacheInputStreamTest {
 
     @Test
     public void testProcessBigSingleByteBuffer() throws Exception {
-        MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
+        MemcacheInputStream input = new MemcacheInputStream(pendingCommands);
 
         Buffer buff = Buffer.buffer();
         for (int i = 0; i < 8194; i++) {
@@ -114,8 +109,6 @@ public class MemcacheInputStreamTest {
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, "key", null, null);
 
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
-
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
                 assertNotNull("Invalid command json response", command);
@@ -129,8 +122,7 @@ public class MemcacheInputStreamTest {
         Buffer buff = Buffer.buffer();
         buff.appendString("TOUCHED\r\n");
         input.processBuffer(buff);
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("TOUCHED", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
@@ -138,8 +130,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -154,8 +144,7 @@ public class MemcacheInputStreamTest {
         Buffer buff = Buffer.buffer();
         buff.appendString("CLIENT ERROR message\r\n");
         input.processBuffer(buff);
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("CLIENT ERROR message", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
@@ -163,8 +152,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -179,8 +166,7 @@ public class MemcacheInputStreamTest {
         Buffer buff = Buffer.buffer();
         buff.appendString("SERVER ERROR message\r\n");
         input.processBuffer(buff);
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("SERVER ERROR message", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
@@ -188,8 +174,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -205,8 +189,7 @@ public class MemcacheInputStreamTest {
         buff.appendString("ERROR\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("ERROR", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
@@ -214,8 +197,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.delete, "key", null, null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -231,8 +212,7 @@ public class MemcacheInputStreamTest {
         buff.appendString("DELETED\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("DELETED", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
@@ -240,8 +220,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.incr, "key", "1", null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -257,15 +235,12 @@ public class MemcacheInputStreamTest {
         buff.appendString("NOT_FOUND\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("NOT_FOUND", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
     public void testProcessModifyBuffer() throws Exception {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.incr, "key", "1", null);
 
@@ -283,15 +258,12 @@ public class MemcacheInputStreamTest {
         buff.appendString("2\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("2", new String(values.get(0)));
+        verify(input, times(1)).addCompletedLine();
     }
 
     @Test
     public void testProcessRetrieveBuffer() throws Exception {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
 
@@ -309,17 +281,12 @@ public class MemcacheInputStreamTest {
         buff.appendString("VALUE key 0 6\r\nfoobar\r\nEND\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("VALUE key 0 6", new String(values.get(0)));
-        assertEquals("foobar", new String(values.get(1)));
-        assertEquals("END", new String(values.get(2)));
+        verify(input, times(3)).addCompletedLine();
     }
 
     @Test
     public void testProcessRetrieveMultipleBuffer() throws Exception {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key key1", null, null);
 
@@ -342,12 +309,7 @@ public class MemcacheInputStreamTest {
         buff.appendString("VALUE key 0 3\r\nfoo\r\nVALUE key1 0 3\r\nbar\r\nEND\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("VALUE key 0 3", new String(values.get(0)));
-        assertEquals("foo", new String(values.get(1)));
-        assertEquals("VALUE key1 0 3", new String(values.get(2)));
-        assertEquals("bar", new String(values.get(3)));
-        assertEquals("END", new String(values.get(4)));
+        verify(input, times(5)).addCompletedLine();
     }
 
     @Test
@@ -355,8 +317,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key key1", null, null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -369,11 +329,7 @@ public class MemcacheInputStreamTest {
         Buffer buff = Buffer.buffer();
         buff.appendString("VALUE key 0 3\r\nfoo\r\nVALUE key1 0 3\r\nbar\r\n");
         input.processBuffer(buff);
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("VALUE key 0 3", new String(values.get(0)));
-        assertEquals("foo", new String(values.get(1)));
-        assertEquals("VALUE key1 0 3", new String(values.get(2)));
-        assertEquals("bar", new String(values.get(3)));
+        verify(input, times(4)).addCompletedLine();
     }
 
     @Test(expected = MemcacheException.class)
@@ -381,8 +337,6 @@ public class MemcacheInputStreamTest {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, "key", null, null);
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         command.commandResponseHandler(new Handler<JsonObject>() {
             public void handle(JsonObject command) {
@@ -400,8 +354,6 @@ public class MemcacheInputStreamTest {
     @Test
     public void testTwoBuffersEndLine() {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
 
@@ -422,17 +374,12 @@ public class MemcacheInputStreamTest {
         buff.appendString("\nfoobar\r\nEND\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("VALUE key 0 6", new String(values.get(0)));
-        assertEquals("foobar", new String(values.get(1)));
-        assertEquals("END", new String(values.get(2)));
+        verify(input, times(3)).addCompletedLine();
     }
 
     @Test
     public void testTwoBuffersEndLineNext() {
         MemcacheInputStream input = Mockito.spy(new MemcacheInputStream(pendingCommands));
-
-        doCallRealMethod().when(input).addCompletedLine(captor.capture());
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
 
@@ -453,9 +400,6 @@ public class MemcacheInputStreamTest {
         buff.appendString("\r\nfoobar\r\nEND\r\n");
         input.processBuffer(buff);
 
-        List<byte[]> values = captor.getAllValues();
-        assertEquals("VALUE key 0 6", new String(values.get(0)));
-        assertEquals("foobar", new String(values.get(1)));
-        assertEquals("END", new String(values.get(2)));
+        verify(input, times(3)).addCompletedLine();
     }
 }

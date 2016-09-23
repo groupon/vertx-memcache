@@ -21,6 +21,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 
 import io.vertx.core.json.JsonObject;
@@ -40,6 +41,7 @@ public class RetrieveLineParserTest {
     private RetrieveLineParser parser;
     private Field expectedBytes;
     private Field bytesRetrieved;
+    private ByteArrayOutputStream outputStream;
 
     @Before
     public void setUp() throws Exception {
@@ -50,12 +52,13 @@ public class RetrieveLineParserTest {
 
         bytesRetrieved = RetrieveLineParser.class.getDeclaredField("bytesRetrieved");
         bytesRetrieved.setAccessible(true);
+        outputStream = new ByteArrayOutputStream();
     }
 
     @Test
     public void testValueParseLine() throws Exception {
-        byte[] start = (MemcacheResponseType.VALUE.name() + " key 0 4").getBytes();
-        assertFalse("Failed to parse value header", parser.isResponseEnd(start));
+        outputStream.write((MemcacheResponseType.VALUE.name() + " key 0 4").getBytes());
+        assertFalse("Failed to parse value header", parser.isResponseEnd(outputStream));
         assertNotNull("Invalid expected bytes", expectedBytes.get(parser));
         assertEquals("Invalid expected bytes length", 4, ((byte[]) expectedBytes.get(parser)).length);
         assertEquals("Invalid bytes retrieved", 0, bytesRetrieved.getInt(parser));
@@ -63,9 +66,10 @@ public class RetrieveLineParserTest {
 
     @Test
     public void testIncompletePartialParseLine() throws Exception {
-        byte[] start = (MemcacheResponseType.VALUE.name() + " key 0 4").getBytes();
-        byte[] body = "tes".getBytes();
-        assertFalse("Failed to parse value header", parser.isResponseEnd(start));
+        outputStream.write((MemcacheResponseType.VALUE.name() + " key 0 4").getBytes());
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.write("tes".getBytes());
+        assertFalse("Failed to parse value header", parser.isResponseEnd(outputStream));
         assertFalse("Failed to parse value line", parser.isResponseEnd(body));
         assertEquals("Invalid expected bytes", "tes", new String((byte[]) expectedBytes.get(parser)).trim());
         assertEquals("Invalid bytes retrieved", 3, bytesRetrieved.getInt(parser));
@@ -73,9 +77,10 @@ public class RetrieveLineParserTest {
 
     @Test
     public void testPartialParseLine() throws Exception {
-        byte[] start = (MemcacheResponseType.VALUE.name() + " key 0 4").getBytes();
-        byte[] body = "test".getBytes();
-        assertFalse("Failed to parse value header", parser.isResponseEnd(start));
+        outputStream.write((MemcacheResponseType.VALUE.name() + " key 0 4").getBytes());
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.write("test".getBytes());
+        assertFalse("Failed to parse value header", parser.isResponseEnd(outputStream));
         assertFalse("Failed to parse value line", parser.isResponseEnd(body));
         assertNull("Invalid expected bytes", expectedBytes.get(parser));
         assertEquals("Invalid bytes retrieved", 0, bytesRetrieved.getInt(parser));
@@ -89,10 +94,12 @@ public class RetrieveLineParserTest {
 
     @Test
     public void testCompleteParseLine() throws Exception {
-        byte[] start = (MemcacheResponseType.VALUE.name() + " key 0 4").getBytes();
-        byte[] body = "test".getBytes();
-        byte[] end = MemcacheResponseType.END.type;
-        assertFalse("Failed to parse value header", parser.isResponseEnd(start));
+        outputStream.write((MemcacheResponseType.VALUE.name() + " key 0 4").getBytes());
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.write("test".getBytes());
+        ByteArrayOutputStream end = new ByteArrayOutputStream();
+        end.write(MemcacheResponseType.END.type.getBytes());
+        assertFalse("Failed to parse value header", parser.isResponseEnd(outputStream));
         assertFalse("Failed to parse value line", parser.isResponseEnd(body));
         assertTrue("Failed to parse end line", parser.isResponseEnd(end));
         assertNull("Invalid expected bytes", expectedBytes.get(parser));
@@ -106,36 +113,39 @@ public class RetrieveLineParserTest {
     }
 
     @Test
-    public void testErrorEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.ERROR.type));
+    public void testErrorEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
     }
 
     @Test
-    public void testClientErrorEndLine() {
+    public void testClientErrorEndLine() throws Exception {
         String clientError = "CLIENT ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(clientError.getBytes()));
+        outputStream.write(clientError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", clientError, response.getString("message"));
     }
 
     @Test
-    public void testServerErrorEndLine() {
+    public void testServerErrorEndLine() throws Exception {
         String serverError = "SERVER ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(serverError.getBytes()));
+        outputStream.write(serverError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", serverError, response.getString("message"));
     }
 
     @Test
-    public void testInvalidValue() {
+    public void testInvalidValue() throws Exception {
         try {
-            byte[] start = (MemcacheResponseType.VALUE.name() + " key").getBytes();
-            parser.isResponseEnd(start);
+            outputStream.write((MemcacheResponseType.VALUE.name() + " key").getBytes());
+            parser.isResponseEnd(outputStream);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
             assertEquals("Unexpected exception", "Unexpected format in response", me.getMessage());
@@ -143,11 +153,12 @@ public class RetrieveLineParserTest {
     }
 
     @Test
-    public void testValueTooLong() {
+    public void testValueTooLong() throws Exception {
         try {
-            byte[] start = (MemcacheResponseType.VALUE.name() + " key 0 4").getBytes();
-            byte[] body = "testtoolong".getBytes();
-            assertFalse("Failed to parse value header", parser.isResponseEnd(start));
+            outputStream.write((MemcacheResponseType.VALUE.name() + " key 0 4").getBytes());
+            ByteArrayOutputStream body = new ByteArrayOutputStream();
+            body.write("testtoolong".getBytes());
+            assertFalse("Failed to parse value header", parser.isResponseEnd(outputStream));
             parser.isResponseEnd(body);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
@@ -156,9 +167,10 @@ public class RetrieveLineParserTest {
     }
 
     @Test
-    public void testInvalidLine() {
+    public void testInvalidLine() throws Exception {
         try {
-            byte[] start = "foo".getBytes();
+            ByteArrayOutputStream start = new ByteArrayOutputStream();
+            start.write("foo".getBytes());
             parser.isResponseEnd(start);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {

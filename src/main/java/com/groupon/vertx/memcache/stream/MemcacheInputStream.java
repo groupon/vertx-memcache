@@ -51,7 +51,7 @@ public class MemcacheInputStream {
     private static final Logger log = Logger.getLogger(MemcacheInputStream.class);
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private final ConcurrentLinkedQueue<MemcacheCommand> pendingCommands;
-    private final ByteArrayOutputStream buffer;
+    private ByteArrayOutputStream buffer;
     private byte previous;
 
     /**
@@ -71,10 +71,9 @@ public class MemcacheInputStream {
      * @param pendingCommands the commands
      * @param bufferSize      size of the buffer to read the response
      */
+    @Deprecated
     public MemcacheInputStream(ConcurrentLinkedQueue<MemcacheCommand> pendingCommands, int bufferSize) {
-        this.pendingCommands = pendingCommands;
-        this.buffer = new ByteArrayOutputStream(bufferSize);
-        previous = 0;
+        this(pendingCommands);
     }
 
     /**
@@ -101,16 +100,14 @@ public class MemcacheInputStream {
                 if (byteBuf.isReadable()) {
                     second = byteBuf.readByte();
                     if (second == '\n') {
-                        byte[] line = buffer.toByteArray();
-                        addCompletedLine(line);
+                        addCompletedLine();
                     }
                     previous = second;
                 } else {
                     previous = first;
                 }
             } else if (first == '\n' && previous == '\r') {
-                byte[] line = buffer.toByteArray();
-                addCompletedLine(line);
+                addCompletedLine();
                 previous = first;
             } else {
                 buffer.write(first);
@@ -146,19 +143,18 @@ public class MemcacheInputStream {
      * When the crlf sequence has been received from the Buffer it is time to check if we
      * have enough data to complete a command and clear the line off of the current buffer.
      *
-     * @param line - A byte[] representing a complete line which is terminated by a '\r\n'.
      */
-    protected void addCompletedLine(byte[] line) {
-        buffer.reset();
+    protected void addCompletedLine() {
         previous = 0;
         if (pendingCommands.size() > 0) {
             MemcacheCommand command = pendingCommands.peek();
             LineParser parser = command.getLineParser();
-            if (parser.isResponseEnd(line)) {
+            if (parser.isResponseEnd(buffer)) {
                 processCommand(pendingCommands.poll());
             }
         } else {
             log.warn("addCompletedLine", "noPendingCommands");
         }
+        buffer = new ByteArrayOutputStream();
     }
 }
