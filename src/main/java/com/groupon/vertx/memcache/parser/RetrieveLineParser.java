@@ -15,6 +15,10 @@
  */
 package com.groupon.vertx.memcache.parser;
 
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+
 import io.vertx.core.json.JsonObject;
 
 import com.groupon.vertx.memcache.MemcacheException;
@@ -41,7 +45,7 @@ public class RetrieveLineParser extends BaseLineParser {
     private int bytesRetrieved = 0;
 
     @Override
-    public boolean isResponseEnd(byte[] line) {
+    public boolean isResponseEnd(ByteArrayOutputStream line) {
         boolean match = super.isResponseEnd(line);
         if (match) {
             return true;
@@ -63,7 +67,7 @@ public class RetrieveLineParser extends BaseLineParser {
                         parseRetrievedValue(line);
                         match = false;
                     } else {
-                        log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, new String(line, ENCODING));
+                        log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, getMessageNullIfError(line));
                         throw new MemcacheException("Unexpected format in response");
                     }
                     break;
@@ -72,16 +76,21 @@ public class RetrieveLineParser extends BaseLineParser {
             parseRetrievedValue(line);
             match = false;
         } else {
-            log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, new String(line, ENCODING));
+            log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");
         }
 
         return match;
     }
 
-    private void parseRetrievedValue(byte[] line) {
+    private void parseRetrievedValue(ByteArrayOutputStream line) {
         if (expectedBytes == null) {
-            String valueHeader = new String(line, ENCODING);
+            String valueHeader;
+            try {
+                valueHeader = line.toString(ENCODING);
+            } catch (UnsupportedEncodingException e) {
+                throw new MemcacheException("Unexpected encoding");
+            }
             String[] parts = valueHeader.split(" ");
             if (parts.length < VALUE_SEGMENTS) {
                 log.error("parseRetrieveValue", "exception", "invalidValueFormat", new String[] {"line"}, valueHeader);
@@ -89,11 +98,11 @@ public class RetrieveLineParser extends BaseLineParser {
             }
             expectedKey = parts[VALUE_KEY_INDEX];
             expectedBytes = new byte[Integer.parseInt(parts[VALUE_LENGTH_INDEX])];
-        } else if (expectedBytes.length >= (line.length + bytesRetrieved)) {
-            System.arraycopy(line, 0, expectedBytes, bytesRetrieved, line.length);
-            bytesRetrieved += line.length;
+        } else if (expectedBytes.length >= (line.size() + bytesRetrieved)) {
+            System.arraycopy(line.toByteArray(), 0, expectedBytes, bytesRetrieved, line.size());
+            bytesRetrieved += line.size();
         } else {
-            log.error("parseRetrievedValue", "exception", "invalidLength", new String[] {"line"}, new String(line, ENCODING));
+            log.error("parseRetrievedValue", "exception", "invalidLength", new String[] {"length"}, line.size());
             throw new MemcacheException("Length of value exceeds expected response");
         }
 
@@ -104,7 +113,7 @@ public class RetrieveLineParser extends BaseLineParser {
                 data = new JsonObject();
                 response.put("data", data);
             }
-            data.put(expectedKey, new String(expectedBytes, ENCODING));
+            data.put(expectedKey, new String(expectedBytes, Charset.forName(ENCODING)));
             clearExpected();
         }
     }

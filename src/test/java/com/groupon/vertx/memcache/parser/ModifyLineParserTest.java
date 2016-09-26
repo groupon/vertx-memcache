@@ -19,6 +19,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+
 import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,16 +36,18 @@ import com.groupon.vertx.memcache.stream.MemcacheResponseType;
  */
 public class ModifyLineParserTest {
     private ModifyLineParser parser;
+    private ByteArrayOutputStream outputStream;
 
     @Before
     public void setUp() throws Exception {
         parser = new ModifyLineParser();
+        outputStream = new ByteArrayOutputStream();
     }
 
     @Test
     public void testIntegerResult() throws Exception {
-        byte[] result = "12345".getBytes();
-        assertTrue("Failed to parse value", parser.isResponseEnd(result));
+        outputStream.write("12345".getBytes());
+        assertTrue("Failed to parse value", parser.isResponseEnd(outputStream));
 
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
@@ -52,9 +56,9 @@ public class ModifyLineParserTest {
 
     @Test
     public void testNonIntegerResult() throws Exception {
-        byte[] result = "hello".getBytes();
+        outputStream.write("hello".getBytes());
         try {
-            parser.isResponseEnd(result);
+            parser.isResponseEnd(outputStream);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
             assertEquals("Unexpected exception", "Unexpected format in response", me.getMessage());
@@ -63,8 +67,8 @@ public class ModifyLineParserTest {
 
     @Test
     public void testNotFoundResult() throws Exception {
-        byte[] result = MemcacheResponseType.NOT_FOUND.type;
-        assertTrue("Failed to parse value", parser.isResponseEnd(result));
+        outputStream.write(MemcacheResponseType.NOT_FOUND.type.getBytes());
+        assertTrue("Failed to parse value", parser.isResponseEnd(outputStream));
 
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
@@ -72,36 +76,39 @@ public class ModifyLineParserTest {
     }
 
     @Test
-    public void testErrorEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.ERROR.type));
+    public void testErrorEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
     }
 
     @Test
-    public void testClientErrorEndLine() {
+    public void testClientErrorEndLine() throws Exception {
         String clientError = "CLIENT ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(clientError.getBytes()));
+        outputStream.write(clientError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", clientError, response.getString("message"));
     }
 
     @Test
-    public void testServerErrorEndLine() {
+    public void testServerErrorEndLine() throws Exception {
         String serverError = "SERVER ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(serverError.getBytes()));
+        outputStream.write(serverError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", serverError, response.getString("message"));
     }
 
     @Test
-    public void testInvalidLine() {
+    public void testInvalidLine() throws Exception {
         try {
-            byte[] start = "foo".getBytes();
-            parser.isResponseEnd(start);
+            outputStream.write("foo".getBytes());
+            parser.isResponseEnd(outputStream);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
             assertEquals("Unexpected exception", "Unexpected format in response", me.getMessage());

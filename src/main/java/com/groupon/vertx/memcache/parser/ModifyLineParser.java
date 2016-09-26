@@ -15,6 +15,9 @@
  */
 package com.groupon.vertx.memcache.parser;
 
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
+
 import com.groupon.vertx.memcache.MemcacheException;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
@@ -32,7 +35,7 @@ public class ModifyLineParser extends BaseLineParser {
     };
 
     @Override
-    public boolean isResponseEnd(byte[] line) {
+    public boolean isResponseEnd(ByteArrayOutputStream line) {
         boolean match = super.isResponseEnd(line);
         if (match) {
             return true;
@@ -48,13 +51,13 @@ public class ModifyLineParser extends BaseLineParser {
         }
     }
 
-    private boolean parseModifiedValue(byte[] line) {
+    private boolean parseModifiedValue(ByteArrayOutputStream line) {
         try {
-            int data = Integer.parseInt(new String(line, ENCODING));
+            int data = Integer.parseInt(line.toString(ENCODING));
             response.put("status", "success");
             response.put("data", data);
-        } catch (NumberFormatException nfe) {
-            log.error("parseModifiedValue", "exception", "unexpectedFormat", new String[] {"line"}, new String(line, ENCODING));
+        } catch (NumberFormatException | UnsupportedEncodingException nfe) {
+            log.error("parseModifiedValue", "exception", "unexpectedFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");
         }
 

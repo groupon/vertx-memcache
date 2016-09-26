@@ -18,6 +18,8 @@ package com.groupon.vertx.memcache.parser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+
 import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,74 +35,84 @@ import com.groupon.vertx.memcache.stream.MemcacheResponseType;
  */
 public class StoreLineParserTest {
     private StoreLineParser parser;
+    private ByteArrayOutputStream outputStream;
 
     @Before
     public void setUp() {
+        outputStream = new ByteArrayOutputStream();
         parser = new StoreLineParser();
     }
 
     @Test
-    public void testStoredEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.STORED.type));
+    public void testStoredEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.STORED.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.STORED.name(), response.getString("data"));
     }
 
     @Test
-    public void testNotStoredEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.NOT_STORED.type));
+    public void testNotStoredEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.NOT_STORED.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.NOT_STORED.name(), response.getString("data"));
     }
 
     @Test
-    public void testExistsEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.EXISTS.type));
+    public void testExistsEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.EXISTS.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.EXISTS.name(), response.getString("data"));
     }
 
     @Test
-    public void testNotFoundEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.NOT_FOUND.type));
+    public void testNotFoundEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.NOT_FOUND.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "success", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.NOT_FOUND.name(), response.getString("data"));
     }
 
     @Test
-    public void testErrorEndLine() {
-        assertTrue("Failed to identify end", parser.isResponseEnd(MemcacheResponseType.ERROR.type));
+    public void testErrorEndLine() throws Exception {
+        outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
     }
 
     @Test
-    public void testClientErrorEndLine() {
+    public void testClientErrorEndLine() throws Exception {
         String clientError = "CLIENT ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(clientError.getBytes()));
+        outputStream.write(clientError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", clientError, response.getString("message"));
     }
 
     @Test
-    public void testServerErrorEndLine() {
+    public void testServerErrorEndLine() throws Exception {
         String serverError = "SERVER ERROR message";
-        assertTrue("Failed to identify end", parser.isResponseEnd(serverError.getBytes()));
+        outputStream.write(serverError.getBytes());
+        assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
         JsonObject response = parser.getResponse();
         assertEquals("Wrong status", "error", response.getString("status"));
         assertEquals("Wrong data", serverError, response.getString("message"));
     }
 
     @Test
-    public void testUnexpectedFormat() {
+    public void testUnexpectedFormat() throws Exception {
         try {
-            parser.isResponseEnd("foo".getBytes());
+            outputStream.write("foo".getBytes());
+            parser.isResponseEnd(outputStream);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
             assertEquals("Unexpected exception", "Unexpected format in response", me.getMessage());

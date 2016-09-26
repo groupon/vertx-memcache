@@ -18,8 +18,10 @@ package com.groupon.vertx.memcache.stream;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -30,34 +32,46 @@ import org.junit.Test;
  */
 public class MemcacheResponseTypeTest {
     private Charset encoding = Charset.forName("UTF-8");
+    private ByteArrayOutputStream outputStream;
 
-    @Test
-    public void testMatchExactSuccess() {
-        assertTrue("Exact match should have succeeded", MemcacheResponseType.STORED.matches("STORED".getBytes(encoding)));
+    @Before
+    public void setUp() throws Exception {
+        outputStream = new ByteArrayOutputStream();
     }
 
     @Test
-    public void testMatchExcactFailure() {
-        assertFalse("Exact match should have failed", MemcacheResponseType.STORED.matches("STORE".getBytes(encoding)));
+    public void testMatchExactSuccess() throws Exception {
+        outputStream.write("STORED".getBytes());
+        assertTrue("Exact match should have succeeded", MemcacheResponseType.STORED.matches(outputStream));
     }
 
     @Test
-    public void testMatchNonExactSuccess() {
-        assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches("VALUE ".getBytes(encoding)));
+    public void testMatchExcactFailure() throws Exception {
+        outputStream.write("STORE".getBytes());
+        assertFalse("Exact match should have failed", MemcacheResponseType.STORED.matches(outputStream));
     }
 
     @Test
-    public void testMatchNonExactDifferentLengthSuccess() {
-        assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches("VALUE EXTRA".getBytes(encoding)));
+    public void testMatchNonExactSuccess() throws Exception {
+        outputStream.write("VALUE ".getBytes());
+        assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches(outputStream));
     }
 
     @Test
-    public void testMatchNonExcactFailure() {
-        assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches("NOTIT".getBytes(encoding)));
+    public void testMatchNonExactDifferentLengthSuccess() throws Exception {
+        outputStream.write("VALUE EXTRA".getBytes());
+        assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches(outputStream));
     }
 
     @Test
-    public void testMatchNonExcactDifferentLengthsFailure() {
-        assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches("VALU".getBytes(encoding)));
+    public void testMatchNonExcactFailure() throws Exception {
+        outputStream.write("NOTIT".getBytes());
+        assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches(outputStream));
+    }
+
+    @Test
+    public void testMatchNonExcactDifferentLengthsFailure() throws Exception {
+        outputStream.write("VALU".getBytes());
+        assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches(outputStream));
     }
 }

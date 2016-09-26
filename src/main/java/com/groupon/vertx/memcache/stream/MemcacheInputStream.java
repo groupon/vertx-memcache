@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 Groupon.com
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,7 @@
  */
 package com.groupon.vertx.memcache.stream;
 
+import java.io.ByteArrayOutputStream;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import io.netty.buffer.ByteBuf;
@@ -50,16 +51,29 @@ public class MemcacheInputStream {
     private static final Logger log = Logger.getLogger(MemcacheInputStream.class);
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private final ConcurrentLinkedQueue<MemcacheCommand> pendingCommands;
-    private final byte[] buffer;
-    private int bufferPosition = 0;
+    private ByteArrayOutputStream buffer;
+    private byte previous;
 
+    /**
+     * create a MemcacheInputStream parser that will process the commands reading the buffer received
+     *
+     * @param pendingCommands the commands
+     */
     public MemcacheInputStream(ConcurrentLinkedQueue<MemcacheCommand> pendingCommands) {
-        this(pendingCommands, DEFAULT_BUFFER_SIZE);
+        this.pendingCommands = pendingCommands;
+        this.buffer = new ByteArrayOutputStream(DEFAULT_BUFFER_SIZE);
+        this.previous = 0;
     }
 
+    /**
+     * create a MemcacheInputStream parser that will process the commands reading the buffer received
+     *
+     * @param pendingCommands the commands
+     * @param bufferSize      size of the buffer to read the response
+     */
+    @Deprecated
     public MemcacheInputStream(ConcurrentLinkedQueue<MemcacheCommand> pendingCommands, int bufferSize) {
-        this.pendingCommands = pendingCommands;
-        this.buffer = new byte[bufferSize];
+        this(pendingCommands);
     }
 
     /**
@@ -82,22 +96,22 @@ public class MemcacheInputStream {
 
         while (byteBuf.isReadable()) {
             first = byteBuf.readByte();
-            if (first == '\r' && byteBuf.isReadable()) {
-                second = byteBuf.readByte();
-                if (second == '\n') {
-                    byte[] line = new byte[bufferPosition];
-                    System.arraycopy(buffer, 0, line, 0, line.length);
-                    addCompletedLine(line);
+            if (first == '\r') {
+                if (byteBuf.isReadable()) {
+                    second = byteBuf.readByte();
+                    if (second == '\n') {
+                        addCompletedLine();
+                    }
+                    previous = second;
                 } else {
-                    buffer[bufferPosition++] = first;
-                    buffer[bufferPosition++] = second;
+                    previous = first;
                 }
-            } else if (first == '\n' && buffer[bufferPosition - 1] == '\r') {
-                byte[] line = new byte[bufferPosition - 1];
-                System.arraycopy(buffer, 0, line, 0, line.length);
-                addCompletedLine(line);
+            } else if (first == '\n' && previous == '\r') {
+                addCompletedLine();
+                previous = first;
             } else {
-                buffer[bufferPosition++] = first;
+                buffer.write(first);
+                previous = first;
             }
         }
     }
@@ -129,19 +143,18 @@ public class MemcacheInputStream {
      * When the crlf sequence has been received from the Buffer it is time to check if we
      * have enough data to complete a command and clear the line off of the current buffer.
      *
-     * @param line - A byte[] representing a complete line which is terminated by a '\r\n'.
      */
-    private void addCompletedLine(byte[] line) {
-        bufferPosition = 0;
-
+    protected void addCompletedLine() {
+        previous = 0;
         if (pendingCommands.size() > 0) {
             MemcacheCommand command = pendingCommands.peek();
             LineParser parser = command.getLineParser();
-            if (parser.isResponseEnd(line)) {
+            if (parser.isResponseEnd(buffer)) {
                 processCommand(pendingCommands.poll());
             }
         } else {
             log.warn("addCompletedLine", "noPendingCommands");
         }
+        buffer.reset();
     }
 }

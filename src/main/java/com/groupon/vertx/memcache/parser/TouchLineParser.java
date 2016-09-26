@@ -15,6 +15,8 @@
  */
 package com.groupon.vertx.memcache.parser;
 
+import java.io.ByteArrayOutputStream;
+
 import com.groupon.vertx.memcache.MemcacheException;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
@@ -32,7 +34,7 @@ public class TouchLineParser extends BaseLineParser {
     };
 
     @Override
-    public boolean isResponseEnd(byte[] line) {
+    public boolean isResponseEnd(ByteArrayOutputStream line) {
         boolean match = super.isResponseEnd(line);
         if (match) {
             return true;
@@ -43,7 +45,7 @@ public class TouchLineParser extends BaseLineParser {
             response.put("status", "success");
             response.put("data", type.name());
         } else {
-            log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, new String(line, ENCODING));
+            log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");
         }
 
