@@ -155,6 +155,6 @@ public class MemcacheInputStream {
         } else {
             log.warn("addCompletedLine", "noPendingCommands");
         }
-        buffer = new ByteArrayOutputStream();
+        buffer.reset();
     }
 }
