@@ -18,32 +18,41 @@ package com.groupon.vertx.memcache.client;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.stub;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.hamcrest.FeatureMatcher;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.internal.matchers.Equals;
 
 import com.groupon.vertx.memcache.MemcacheConfig;
 import com.groupon.vertx.memcache.MemcacheKeys;
+import com.groupon.vertx.memcache.TestMessage;
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
+import com.groupon.vertx.memcache.client.response.StoreCommandResponse;
+import com.groupon.vertx.memcache.client.response.TouchCommandResponse;
+import com.groupon.vertx.memcache.command.MemcacheCommand;
+import com.groupon.vertx.memcache.command.MemcacheCommandType;
 import com.groupon.vertx.memcache.hash.HashAlgorithm;
 
 /**
@@ -57,11 +66,23 @@ public class MemcacheClientTest implements MemcacheKeys {
     @Mock
     private EventBus eventBus;
 
-    @Mock
-    private Message<JsonObject> message;
+    @Captor
+    private ArgumentCaptor<MemcacheClientResponseHandler<ModifyCommandResponse>> modifyCaptor;
 
-    @Mock
-    private Message<JsonObject> message2;
+    @Captor
+    private ArgumentCaptor<MemcacheClientResponseHandler<StoreCommandResponse>> storeCaptor;
+
+    @Captor
+    private ArgumentCaptor<TranslateKeyResponseHandler> getCaptor;
+
+    @Captor
+    private ArgumentCaptor<MemcacheClientResponseHandler<DeleteCommandResponse>> deleteCaptor;
+
+    @Captor
+    private ArgumentCaptor<MemcacheClientResponseHandler<TouchCommandResponse>> touchCaptor;
+
+    @Captor
+    private ArgumentCaptor<MemcacheCommand> commandCaptor;
 
     private MemcacheClient client;
 
@@ -82,256 +103,319 @@ public class MemcacheClientTest implements MemcacheKeys {
 
     @Test
     public void testIncr() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final ModifyCommandResponse response = new ModifyCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.incr("key", 1).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.incr("key", 1).setHandler(new Handler<AsyncResult<ModifyCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<ModifyCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"incr\",\"key\":\"namespacekey\",\"value\":\"1\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.incr, "namespacekey", "1", null);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), modifyCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        modifyCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testDecr() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final ModifyCommandResponse response = new ModifyCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.decr("key", 1).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.decr("key", 1).setHandler(new Handler<AsyncResult<ModifyCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<ModifyCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"decr\",\"key\":\"namespacekey\",\"value\":\"1\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.decr, "namespacekey", "1", null);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), modifyCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        modifyCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testSet() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final StoreCommandResponse response = new StoreCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.set("key", "value", 100).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.set("key", "value", 100).setHandler(new Handler<AsyncResult<StoreCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<StoreCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"set\",\"key\":\"namespacekey\",\"value\":\"value\",\"expires\":100}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "namespacekey", "value", 100);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), storeCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        storeCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testAdd() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final StoreCommandResponse response = new StoreCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.add("key", "value", 100).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.add("key", "value", 100).setHandler(new Handler<AsyncResult<StoreCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<StoreCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"add\",\"key\":\"namespacekey\",\"value\":\"value\",\"expires\":100}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.add, "namespacekey", "value", 100);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE),
+                storeCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        storeCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testReplace() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final StoreCommandResponse response = new StoreCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.replace("key", "value", 100).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.replace("key", "value", 100).setHandler(new Handler<AsyncResult<StoreCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<StoreCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"replace\",\"key\":\"namespacekey\",\"value\":\"value\",\"expires\":100}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.replace, "namespacekey", "value", 100);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), storeCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        storeCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testAppend() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final ModifyCommandResponse response = new ModifyCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.append("key", "value").setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.append("key", "value").setHandler(new Handler<AsyncResult<ModifyCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<ModifyCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"append\",\"key\":\"namespacekey\",\"value\":\"value\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.append, "namespacekey", "value", null);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), modifyCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        modifyCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testPrepend() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final ModifyCommandResponse response = new ModifyCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.prepend("key", "value").setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.prepend("key", "value").setHandler(new Handler<AsyncResult<ModifyCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<ModifyCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"prepend\",\"key\":\"namespacekey\",\"value\":\"value\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.prepend, "namespacekey", "value", null);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), modifyCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        modifyCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testGet() {
-        JsonObject rawResponse = new JsonObject("{\"status\":\"success\",\"data\":{\"namespacekey\":\"value\"}}");
-        stub(message.body()).toReturn(rawResponse);
+        final RetrieveCommandResponse response = new RetrieveCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .setData(Collections.singletonMap("namespacekey", "value"))
+                .build();
 
-        final JsonObject response = new JsonObject("{\"status\":\"success\",\"data\":{\"key\":\"value\"}}");
-        client.get("key").setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
-                assertEquals("Result doesn't match", response, result.result());
+        client.get("key").setHandler(new Handler<AsyncResult<RetrieveCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<RetrieveCommandResponse> result) {
+                assertEquals("Result status doesn't match", response.getStatus(), result.result().getStatus());
+                assertEquals("Result data doesn't match", Collections.singletonMap("key", "value"), result.result().getData());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"get\",\"key\":\"namespacekey\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "namespacekey", null, null);
 
-        ArgumentCaptor<TranslateKeyResponseHandler> eventCaptor = ArgumentCaptor.forClass(TranslateKeyResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), getCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        getCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testMultiGet() {
-        JsonObject getresponse1 = new JsonObject("{\"status\":\"success\",\"data\":{\"namespacekey1\":\"value\"}}");
-        JsonObject getresponse2 = new JsonObject("{\"status\":\"success\",\"data\":{\"namespacekey2\":\"value\"}}");
+        final Map<String, String> keyMap = new HashMap<>();
+        keyMap.put("namespacekey1", "value");
+        keyMap.put("namespacekey2", "value");
+        final RetrieveCommandResponse responseFull = new RetrieveCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .setData(keyMap)
+                .build();
+        List<TestMessage<RetrieveCommandResponse>> messages = Arrays.asList(
+                new TestMessage<>(
+                        new RetrieveCommandResponse.Builder()
+                                .setStatus(JsendStatus.success)
+                                .setData(Collections.singletonMap("namespacekey1", keyMap.get("namespacekey1")))
+                                .build()),
+                new TestMessage<>(
+                        new RetrieveCommandResponse.Builder()
+                                .setStatus(JsendStatus.success)
+                                .setData(Collections.singletonMap("namespacekey2", keyMap.get("namespacekey2")))
+                                .build()));
 
-        doReturn(getresponse1).when(message).body();
-        doReturn(getresponse2).when(message2).body();
-
-        List<Message<JsonObject>> messages = Arrays.asList(message, message2);
-
-        final JsonObject response = new JsonObject("{\"status\":\"success\",\"data\":{\"key1\":\"value\",\"key2\":\"value\"}}");
-        client.get(Arrays.asList("key1", "key2")).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
-                assertEquals("Result doesn't match", response, result.result());
+        client.get(Arrays.asList("key1", "key2")).setHandler(new Handler<AsyncResult<RetrieveCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<RetrieveCommandResponse> result) {
+                assertEquals("Result status doesn't match", responseFull.getStatus(), result.result().getStatus());
+                assertEquals("Result data doesn't match", "value", result.result().getData().get("key1"));
+                assertEquals("Result data doesn't match", "value", result.result().getData().get("key2"));
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"get\",\"key\":\"namespacekey1\"}");
+        MemcacheCommand command1 = new MemcacheCommand(MemcacheCommandType.get, "namespacekey1", null, null);
+        MemcacheCommand command2 = new MemcacheCommand(MemcacheCommandType.get, "namespacekey2", null, null);
 
-        ArgumentCaptor<TranslateKeyResponseHandler> eventCaptor = ArgumentCaptor.forClass(TranslateKeyResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand.put("key", "namespacekey2")), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        List<MemcacheCommand> expectedCommands = Arrays.asList(command1, command2);
 
-        List<TranslateKeyResponseHandler> handlers = eventCaptor.getAllValues();
-        for (int i = 0; i < eventCaptor.getAllValues().size(); i++) {
+        verify(eventBus, times(2)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), getCaptor.capture());
+
+        List<MemcacheCommand> commands = commandCaptor.getAllValues();
+        List<TranslateKeyResponseHandler> handlers = getCaptor.getAllValues();
+        for (int i = 0; i < getCaptor.getAllValues().size(); i++) {
+            verifyCommand(expectedCommands.get(i), commands.get(i));
             handlers.get(i).handle(Future.succeededFuture(messages.get(i)));
         }
     }
 
     @Test
     public void testMultiGetWithMissingData() {
-        JsonObject getresponse1 = new JsonObject("{\"status\":\"success\",\"data\":{\"namespacekey1\":\"value\"}}");
-        JsonObject getresponse2 = new JsonObject("{\"status\":\"success\"}}");
+        final RetrieveCommandResponse response = new RetrieveCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .setData(Collections.singletonMap("namespacekey1", "value"))
+                .build();
+        List<TestMessage<RetrieveCommandResponse>> messages = Arrays.asList(
+                new TestMessage<>(response),
+                new TestMessage<>(new RetrieveCommandResponse.Builder()
+                        .setStatus(JsendStatus.success)
+                        .setData(Collections.emptyMap())
+                        .build()));
 
-        doReturn(getresponse1).when(message).body();
-        doReturn(getresponse2).when(message2).body();
-
-        List<Message<JsonObject>> messages = Arrays.asList(message, message2);
-
-        final JsonObject response = new JsonObject("{\"status\":\"success\",\"data\":{\"key1\":\"value\"}}");
-        client.get(Arrays.asList("key1", "key2")).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
-                assertEquals("Result doesn't match", response, result.result());
+        client.get(Arrays.asList("key1", "key2")).setHandler(new Handler<AsyncResult<RetrieveCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<RetrieveCommandResponse> result) {
+                assertEquals("Result status doesn't match", response.getStatus(), result.result().getStatus());
+                assertEquals("Result data doesn't match", Collections.singletonMap("key1", "value"), result.result().getData());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"get\",\"key\":\"namespacekey1\"}");
+        MemcacheCommand command1 = new MemcacheCommand(MemcacheCommandType.get, "namespacekey1", null, null);
+        MemcacheCommand command2 = new MemcacheCommand(MemcacheCommandType.get, "namespacekey2", null, null);
 
-        ArgumentCaptor<TranslateKeyResponseHandler> eventCaptor = ArgumentCaptor.forClass(TranslateKeyResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand.put("key", "namespacekey2")), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        List<MemcacheCommand> expectedCommands = Arrays.asList(command1, command2);
 
-        List<TranslateKeyResponseHandler> handlers = eventCaptor.getAllValues();
-        for (int i = 0; i < eventCaptor.getAllValues().size(); i++) {
+        verify(eventBus, times(2)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), getCaptor.capture());
+
+        List<MemcacheCommand> commands = commandCaptor.getAllValues();
+        List<TranslateKeyResponseHandler> handlers = getCaptor.getAllValues();
+        for (int i = 0; i < getCaptor.getAllValues().size(); i++) {
+            verifyCommand(expectedCommands.get(i), commands.get(i));
             handlers.get(i).handle(Future.succeededFuture(messages.get(i)));
         }
     }
 
     @Test
     public void testDelete() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final DeleteCommandResponse response = new DeleteCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.delete("key").setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.delete("key").setHandler(new Handler<AsyncResult<DeleteCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<DeleteCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"delete\",\"key\":\"namespacekey\"}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.delete, "namespacekey", null, null);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), deleteCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        deleteCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testTouch() {
-        final JsonObject response = new JsonObject("{\"status\":\"success\"}");
-        stub(message.body()).toReturn(response);
+        final TouchCommandResponse response = new TouchCommandResponse.Builder()
+                .setStatus(JsendStatus.success)
+                .build();
 
-        client.touch("key", 100).setHandler(new Handler<AsyncResult<JsonObject>>() {
-            public void handle(AsyncResult<JsonObject> result) {
+        client.touch("key", 100).setHandler(new Handler<AsyncResult<TouchCommandResponse>>() {
+            @Override
+            public void handle(AsyncResult<TouchCommandResponse> result) {
                 assertEquals("Result doesn't match", response, result.result());
             }
         });
 
-        JsonObject jsonCommand = new JsonObject("{\"command\":\"touch\",\"key\":\"namespacekey\",\"expires\":100}");
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, "namespacekey", null, 100);
 
-        ArgumentCaptor<MemcacheClientResponseHandler> eventCaptor = ArgumentCaptor.forClass(MemcacheClientResponseHandler.class);
-        verify(eventBus, times(1)).send(eq("address_server1"), eq(jsonCommand), withTimeout(Long.MAX_VALUE), eventCaptor.capture());
+        verify(eventBus, times(1)).send(eq("address_server1"), commandCaptor.capture(), withTimeout(Long.MAX_VALUE), touchCaptor.capture());
 
-        eventCaptor.getValue().handle(Future.succeededFuture(message));
+        verifyCommand(command, commandCaptor.getValue());
+
+        touchCaptor.getValue().handle(Future.succeededFuture(new TestMessage<>(response)));
     }
 
     @Test
     public void testGetNamespace() {
         assertEquals("namespace", client.getNamespace());
+    }
+    
+    private void verifyCommand(MemcacheCommand expected, MemcacheCommand actual) {
+        assertEquals(expected.getCommand(), actual.getCommand());
+        assertEquals(expected.getKey(), actual.getKey());
+        assertEquals(expected.getValue(), actual.getValue());
+        assertEquals(expected.getExpires(), actual.getExpires());
+        assertEquals(expected.getType(), actual.getType());
     }
 
     private static DeliveryOptions withTimeout(final Long expectedTimeout) {
@@ -339,7 +423,6 @@ public class MemcacheClientTest implements MemcacheKeys {
     }
 
     private static final class DeliveryOptionsTimeoutFeatureMatcher extends FeatureMatcher<DeliveryOptions, Long> {
-
         DeliveryOptionsTimeoutFeatureMatcher(final Long expectedTimeout) {
             super(new Equals(expectedTimeout), "Timeout", "timeout");
         }
@@ -349,4 +432,5 @@ public class MemcacheClientTest implements MemcacheKeys {
             return deliveryOptions.getSendTimeout();
         }
     }
+
 }

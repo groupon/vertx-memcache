@@ -16,6 +16,7 @@
 package com.groupon.vertx.memcache.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.util.Arrays;
 import java.util.TreeMap;
@@ -60,5 +61,15 @@ public class DefaultContinuumTest {
 
         TreeMap<Long, MemcacheServer> map = continuum.getServerContinuum();
         assertEquals("Unexpected server count", 24, map.size());
+    }
+
+    @Test
+    public void testFindKeyInSample() {
+        DefaultContinuum continuum = new DefaultContinuum(Arrays.asList(server1, server2, server3),
+                HashAlgorithm.FNV1_32_HASH, 1);
+        for (int i = 0; i < 2000; i++) {
+            MemcacheServer server = continuum.getServer("key" + i);
+            assertNotNull(server);
+        }
     }
 }

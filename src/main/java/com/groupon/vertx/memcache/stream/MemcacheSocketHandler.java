@@ -19,10 +19,10 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.MessageConsumer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetSocket;
 
+import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.command.MemcacheCommandHandler;
 import com.groupon.vertx.memcache.server.MemcacheServer;
 import com.groupon.vertx.utils.Logger;
@@ -70,7 +70,7 @@ public class MemcacheSocketHandler implements Handler<Long> {
 
                     final NetSocket netSocket = socket.result();
                     final MemcacheCommandHandler memcacheHandler = new MemcacheCommandHandler(netSocket);
-                    final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(eventBusAddress, memcacheHandler);
+                    final MessageConsumer<MemcacheCommand> consumer = vertx.eventBus().consumer(eventBusAddress, memcacheHandler);
 
                     netSocket.exceptionHandler(ex -> {
                         log.error("establishSocket", "exception", "unknown", ex);

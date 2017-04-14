@@ -15,7 +15,8 @@
  */
 package com.groupon.vertx.memcache.stream;
 
-import java.nio.charset.Charset;
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
 
 /**
  * List of Memcache response types.
@@ -36,23 +37,24 @@ public enum MemcacheResponseType {
     CLIENT_ERROR("CLIENT ERROR", false),
     SERVER_ERROR("SERVER ERROR", false);
 
-    public final byte[] type;
+    public final String type;
     public final boolean exact;
 
     MemcacheResponseType(String type, boolean exact) {
-        this.type = type.getBytes(Charset.forName("UTF-8"));
+        this.type = type;
         this.exact = exact;
     }
 
-    public boolean matches(byte[] line) {
-        boolean match = type.length == line.length || (!exact && type.length < line.length);
-        if (match) {
-            for (int i = 0; i < type.length; i++) {
-                match = type[i] == line[i];
-                if (!match) {
-                    break;
-                }
+    public boolean matches(ByteArrayOutputStream line) {
+        boolean match;
+        try {
+            if (!exact) {
+                match = line.toString("UTF-8").startsWith(type);
+            } else {
+                match = line.toString("UTF-8").equals(type);
             }
+        } catch (UnsupportedEncodingException e) {
+            match = false;
         }
         return match;
     }

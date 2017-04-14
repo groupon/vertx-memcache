@@ -17,8 +17,23 @@ package com.groupon.vertx.memcache;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.eventbus.MessageCodec;
 import io.vertx.core.net.NetClient;
 
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
+import com.groupon.vertx.memcache.client.response.StoreCommandResponse;
+import com.groupon.vertx.memcache.client.response.TouchCommandResponse;
+import com.groupon.vertx.memcache.codec.DeleteCommandResponseCodec;
+import com.groupon.vertx.memcache.codec.MemcacheCommandCodec;
+import com.groupon.vertx.memcache.codec.MemcacheCommandResponseCodec;
+import com.groupon.vertx.memcache.codec.ModifyCommandResponseCodec;
+import com.groupon.vertx.memcache.codec.RetrieveCommandResponseCodec;
+import com.groupon.vertx.memcache.codec.StoreCommandResponseCodec;
+import com.groupon.vertx.memcache.codec.TouchCommandResponseCodec;
+import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.server.MemcacheServer;
 import com.groupon.vertx.memcache.stream.MemcacheSocketHandler;
 import com.groupon.vertx.utils.Logger;
@@ -46,11 +61,33 @@ public class MemcacheVerticle extends AbstractVerticle implements MemcacheKeys {
             return;
         }
 
+        try {
+            registerDefaultCodec(MemcacheCommand.class, new MemcacheCommandCodec());
+            registerDefaultCodec(MemcacheCommandResponse.class, new MemcacheCommandResponseCodec());
+            registerDefaultCodec(DeleteCommandResponse.class, new DeleteCommandResponseCodec());
+            registerDefaultCodec(ModifyCommandResponse.class, new ModifyCommandResponseCodec());
+            registerDefaultCodec(RetrieveCommandResponse.class, new RetrieveCommandResponseCodec());
+            registerDefaultCodec(StoreCommandResponse.class, new StoreCommandResponseCodec());
+            registerDefaultCodec(TouchCommandResponse.class, new TouchCommandResponseCodec());
+        } catch (Exception ex) {
+            log.error("start", "exception", ex.getMessage());
+            startFuture.fail(new Exception(ex.getMessage()));
+            return;
+        }
+
         NetClient netClient = vertx.createNetClient();
         establishSockets(memcacheConfig, netClient);
 
         log.info("start", "initializationCompleted");
         startFuture.complete();
+    }
+
+    private <T> void registerDefaultCodec(Class<T> clazz, MessageCodec<T, ?> codec) {
+        try {
+            vertx.eventBus().registerDefaultCodec(clazz, codec);
+        } catch (IllegalStateException iae) {
+            // Codec is already registered.
+        }
     }
 
     /**

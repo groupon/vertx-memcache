@@ -16,6 +16,7 @@
 package com.groupon.vertx.memcache.server;
 
 import java.nio.charset.Charset;
+import java.util.Map;
 import java.util.TreeMap;
 
 import com.groupon.vertx.memcache.MemcacheException;
@@ -49,7 +50,11 @@ public abstract class Continuum {
         } else {
             long hash = hashAlgorithm.hash(key);
             log.debug("getServer", "hashingKey", new String[] {"alorithm", "hash"}, hashAlgorithm.name(), hash);
-            return servers.ceilingEntry(hash).getValue();
+            Map.Entry<Long, MemcacheServer> serverEntry = servers.ceilingEntry(hash);
+            if (serverEntry == null) {
+                return servers.firstEntry().getValue();
+            }
+            return serverEntry.getValue();
         }
     }
 

@@ -18,9 +18,10 @@ package com.groupon.vertx.memcache.stream;
 import java.nio.charset.Charset;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.parser.LineParserType;
 import com.groupon.vertx.utils.Logger;
@@ -114,7 +115,10 @@ public class MemcacheSocket {
     public void close() {
         MemcacheCommand command = pendingCommands.poll();
         while (command != null) {
-            command.setResponse(new JsonObject("{\"status\":\"error\",\"message\":\"Socket closed unexpectedly\"}"));
+            command.setResponse(new MemcacheCommandResponse.Builder()
+                    .setStatus(JsendStatus.error)
+                    .setMessage("Socket closed unexpectedly")
+                    .build());
             command = pendingCommands.poll();
         }
 

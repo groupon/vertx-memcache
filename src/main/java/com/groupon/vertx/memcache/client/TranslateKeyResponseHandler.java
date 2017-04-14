@@ -15,13 +15,16 @@
  */
 package com.groupon.vertx.memcache.client;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonObject;
 
 import com.groupon.vertx.memcache.MemcacheUnavailableException;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
 import com.groupon.vertx.utils.Logger;
 
 /**
@@ -30,37 +33,37 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class TranslateKeyResponseHandler implements Handler<AsyncResult<Message<JsonObject>>> {
+public class TranslateKeyResponseHandler implements Handler<AsyncResult<Message<RetrieveCommandResponse>>> {
     private static final Logger log = Logger.getLogger(TranslateKeyResponseHandler.class);
 
-    private Future<JsonObject> result;
+    private Future<RetrieveCommandResponse> result;
     private String key;
     private String cacheKey;
 
-    public TranslateKeyResponseHandler(Future<JsonObject> result, String key, String cacheKey) {
+    public TranslateKeyResponseHandler(Future<RetrieveCommandResponse> result, String key, String cacheKey) {
         this.result = result;
         this.key = key;
         this.cacheKey = cacheKey;
     }
 
-    public void handle(AsyncResult<Message<JsonObject>> message) {
+    @Override
+    public void handle(AsyncResult<Message<RetrieveCommandResponse>> message) {
         if (message.succeeded()) {
-            if (!key.equals(cacheKey)) {
-                JsonObject body = message.result().body();
-                if (body != null) {
-                    Object data = body.getValue("data");
-                    if (data instanceof JsonObject) {
-                        JsonObject dataJson = (JsonObject) data;
+            RetrieveCommandResponse response = message.result().body();
+            if (key != null && !key.equals(cacheKey) && response != null) {
+                Map<String, String> data = new HashMap<>(response.getData());
+                String value = data.remove(cacheKey);
+                if (value != null) {
+                    data.put(key, value);
 
-                        Object value = dataJson.getValue(cacheKey);
-                        dataJson.remove(cacheKey);
-                        if (value != null) {
-                            dataJson.put(key, value);
-                        }
-                    }
+                    // Replace
+                    response = new RetrieveCommandResponse.Builder()
+                            .setStatus(response.getStatus())
+                            .setData(data)
+                            .build();
                 }
             }
-            result.complete(message.result().body());
+            result.complete(response);
         } else {
             MemcacheUnavailableException unavailable = new MemcacheUnavailableException();
             if (message.cause() != null) {

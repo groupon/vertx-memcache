@@ -15,8 +15,11 @@
  */
 package com.groupon.vertx.memcache.parser;
 
-import io.vertx.core.json.JsonObject;
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -26,27 +29,33 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public abstract class BaseLineParser implements LineParser {
+public abstract class BaseLineParser<T extends MemcacheCommandResponse, B extends MemcacheCommandResponse.AbstractBuilder<B, T>> implements LineParser {
     private static final Logger log = Logger.getLogger(BaseLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.ERROR, MemcacheResponseType.CLIENT_ERROR, MemcacheResponseType.SERVER_ERROR
     };
 
-    protected JsonObject response = new JsonObject();
+    protected abstract B getResponseBuilder();
 
-    public boolean isResponseEnd(byte[] line) {
-        MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
-        if (type != null) {
-            log.trace("isResponseEnd", "error", new String[] {"type"}, type);
-            response.put("status", "error");
-            response.put("message", new String(line, ENCODING));
-            return true;
-        } else {
+    public boolean isResponseEnd(ByteArrayOutputStream line) {
+        try {
+            MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
+            if (type != null) {
+                log.trace("isResponseEnd", "error", new String[]{"type"}, type);
+                B builder = getResponseBuilder();
+                builder.setStatus(JsendStatus.error);
+                builder.setMessage(line.toString(ENCODING));
+                return true;
+            } else {
+                return false;
+            }
+        } catch (UnsupportedEncodingException e) {
+            log.error("getResponse", "unexpected", "unsupported encoding", e);
             return false;
         }
     }
 
-    protected MemcacheResponseType getResponseType(MemcacheResponseType[] list, byte[] line) {
+    protected MemcacheResponseType getResponseType(MemcacheResponseType[] list, ByteArrayOutputStream line) {
         MemcacheResponseType type = null;
         for (MemcacheResponseType responseType : list) {
             if (responseType.matches(line)) {
@@ -58,13 +67,26 @@ public abstract class BaseLineParser implements LineParser {
         return type;
     }
 
-    public JsonObject getResponse() {
-        if (response.size() == 0) {
+    @Override
+    public T getResponse() {
+        B builder = getResponseBuilder();
+        T response = builder.build();
+        if (response.getStatus() == null) {
             log.error("getResponse", "unexpected", "Response returned unexpectedly");
-            response.put("status", "error");
-            response.put("message", "Response returned unexpectedly.");
+            builder.setStatus(JsendStatus.error);
+            builder.setMessage("Response returned unexpectedly.");
+            response = builder.build();
         }
 
         return response;
+    }
+
+    protected String getMessageNullIfError(ByteArrayOutputStream line) {
+        try {
+            return line.toString(ENCODING);
+        } catch (UnsupportedEncodingException e) {
+            log.warn("lint_to_string", e.getMessage());
+        }
+        return null;
     }
 }

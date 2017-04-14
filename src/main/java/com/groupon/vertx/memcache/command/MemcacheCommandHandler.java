@@ -17,9 +17,10 @@ package com.groupon.vertx.memcache.command;
 
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheSocket;
 import com.groupon.vertx.utils.Logger;
 
@@ -29,7 +30,7 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class MemcacheCommandHandler implements Handler<Message<JsonObject>> {
+public class MemcacheCommandHandler implements Handler<Message<MemcacheCommand>> {
     private static final Logger log = Logger.getLogger(MemcacheCommandHandler.class);
     private final MemcacheSocket socket;
 
@@ -76,20 +77,11 @@ public class MemcacheCommandHandler implements Handler<Message<JsonObject>> {
      *
      * @param command - The JsonObject containing the command and arguments to send to Memcache.
      */
-    public void handle(final Message<JsonObject> command) {
-        if (command.body() == null || command.body().size() == 0) {
+    public void handle(final Message<MemcacheCommand> command) {
+        MemcacheCommand memcacheCommand = command.body();
+        if (memcacheCommand == null) {
             log.warn("handleCommand", "failure", new String[]{"reason"}, "Missing message body");
             command.reply(buildErrorReply("Invalid message with null or empty."));
-            return;
-        }
-
-        MemcacheCommand memcacheCommand = null;
-        try {
-            log.trace("handleCommand", "createCommand", new String[]{"command"}, command.body());
-            memcacheCommand = new MemcacheCommand(command.body());
-        } catch (Exception ex) {
-            log.error("handleCommand", "exception", "unknown", ex);
-            command.reply(buildErrorReply(ex.getMessage()));
             return;
         }
 
@@ -109,12 +101,10 @@ public class MemcacheCommandHandler implements Handler<Message<JsonObject>> {
         }
     }
 
-    private JsonObject buildErrorReply(String message) {
-        JsonObject reply = new JsonObject();
-
-        reply.put("status", "error");
-        reply.put("message", message);
-
-        return reply;
+    private MemcacheCommandResponse buildErrorReply(String message) {
+        return new MemcacheCommandResponse.Builder()
+                .setStatus(JsendStatus.error)
+                .setMessage(message)
+                .build();
     }
 }

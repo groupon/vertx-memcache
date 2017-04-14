@@ -15,12 +15,13 @@
  */
 package com.groupon.vertx.memcache.stream;
 
+import java.io.ByteArrayOutputStream;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import io.netty.buffer.ByteBuf;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.parser.LineParser;
 import com.groupon.vertx.utils.Logger;
@@ -50,16 +51,29 @@ public class MemcacheInputStream {
     private static final Logger log = Logger.getLogger(MemcacheInputStream.class);
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private final ConcurrentLinkedQueue<MemcacheCommand> pendingCommands;
-    private final byte[] buffer;
-    private int bufferPosition = 0;
+    private final ByteArrayOutputStream buffer;
+    private byte previous;
 
+    /**
+     * create a MemcacheInputStream parser that will process the commands reading the buffer received
+     *
+     * @param pendingCommands the commands
+     */
     public MemcacheInputStream(ConcurrentLinkedQueue<MemcacheCommand> pendingCommands) {
-        this(pendingCommands, DEFAULT_BUFFER_SIZE);
+        this.pendingCommands = pendingCommands;
+        this.buffer = new ByteArrayOutputStream(DEFAULT_BUFFER_SIZE);
+        this.previous = 0;
     }
 
+    /**
+     * create a MemcacheInputStream parser that will process the commands reading the buffer received
+     *
+     * @param pendingCommands the commands
+     * @param bufferSize      size of the buffer to read the response
+     */
+    @Deprecated
     public MemcacheInputStream(ConcurrentLinkedQueue<MemcacheCommand> pendingCommands, int bufferSize) {
-        this.pendingCommands = pendingCommands;
-        this.buffer = new byte[bufferSize];
+        this(pendingCommands);
     }
 
     /**
@@ -82,22 +96,22 @@ public class MemcacheInputStream {
 
         while (byteBuf.isReadable()) {
             first = byteBuf.readByte();
-            if (first == '\r' && byteBuf.isReadable()) {
-                second = byteBuf.readByte();
-                if (second == '\n') {
-                    byte[] line = new byte[bufferPosition];
-                    System.arraycopy(buffer, 0, line, 0, line.length);
-                    addCompletedLine(line);
+            if (first == '\r') {
+                if (byteBuf.isReadable()) {
+                    second = byteBuf.readByte();
+                    if (second == '\n') {
+                        addCompletedLine();
+                    }
+                    previous = second;
                 } else {
-                    buffer[bufferPosition++] = first;
-                    buffer[bufferPosition++] = second;
+                    previous = first;
                 }
-            } else if (first == '\n' && buffer[bufferPosition - 1] == '\r') {
-                byte[] line = new byte[bufferPosition - 1];
-                System.arraycopy(buffer, 0, line, 0, line.length);
-                addCompletedLine(line);
+            } else if (first == '\n' && previous == '\r') {
+                addCompletedLine();
+                previous = first;
             } else {
-                buffer[bufferPosition++] = first;
+                buffer.write(first);
+                previous = first;
             }
         }
     }
@@ -117,10 +131,9 @@ public class MemcacheInputStream {
         }
 
         LineParser parser = command.getLineParser();
-        JsonObject response = parser.getResponse();
+        MemcacheCommandResponse response = parser.getResponse();
 
-        log.trace("processCommand", "redisCommandSuccess", new String[]{"command", "data"}, command.getCommand(),
-                response.getValue("data"));
+        log.trace("processCommand", "redisCommandSuccess", new String[]{"command"}, command.getCommand());
 
         command.setResponse(response);
     }
@@ -128,20 +141,21 @@ public class MemcacheInputStream {
     /**
      * When the crlf sequence has been received from the Buffer it is time to check if we
      * have enough data to complete a command and clear the line off of the current buffer.
-     *
-     * @param line - A byte[] representing a complete line which is terminated by a '\r\n'.
      */
-    private void addCompletedLine(byte[] line) {
-        bufferPosition = 0;
-
-        if (pendingCommands.size() > 0) {
-            MemcacheCommand command = pendingCommands.peek();
-            LineParser parser = command.getLineParser();
-            if (parser.isResponseEnd(line)) {
-                processCommand(pendingCommands.poll());
+    private void addCompletedLine() {
+        try {
+            previous = 0;
+            if (pendingCommands.size() > 0) {
+                MemcacheCommand command = pendingCommands.peek();
+                LineParser parser = command.getLineParser();
+                if (parser.isResponseEnd(buffer)) {
+                    processCommand(pendingCommands.poll());
+                }
+            } else {
+                log.warn("addCompletedLine", "noPendingCommands");
             }
-        } else {
-            log.warn("addCompletedLine", "noPendingCommands");
+        } finally {
+            buffer.reset();
         }
     }
 }

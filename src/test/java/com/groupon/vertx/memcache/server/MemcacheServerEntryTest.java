@@ -16,6 +16,8 @@
 package com.groupon.vertx.memcache.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -44,6 +46,16 @@ public class MemcacheServerEntryTest {
         assertEquals("Server not returned", server, entry.getServer());
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testConstructorFailure() {
+        new MemcacheServerEntry(null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testConstructorFailure2() {
+        new MemcacheServerEntry(null, null);
+    }
+
     @Test
     public void testCompareToLessThan() {
         assertEquals("Invalid ordering", -1, firstEntry.compareTo(secondEntry));
@@ -57,5 +69,38 @@ public class MemcacheServerEntryTest {
     @Test
     public void testCompareToEqual() {
         assertEquals("Invalid ordering", 0, firstEntry.compareTo(firstEntry));
+    }
+
+    @Test
+    public void testCompareToNull() {
+        assertEquals("Invalid ordering", -1, firstEntry.compareTo(null));
+    }
+
+    @Test
+    public void testEqualsSameObject() {
+        Object other = firstEntry;
+        assertTrue("Invalid equality", firstEntry.equals(other));
+    }
+
+    @Test
+    public void testEqualsSameValue() {
+        Object other = new MemcacheServerEntry(111L);
+        assertTrue("Invalid equality", firstEntry.equals(other));
+    }
+
+    @Test
+    public void testNotEqualsDifferentObject() {
+        assertFalse("Invalid equality", firstEntry.equals(secondEntry));
+    }
+
+    @Test
+    public void testNotEqualsDifferentClass() {
+        Object other = 111L;
+        assertFalse("Invalid equality", firstEntry.equals(other));
+    }
+
+    @Test
+    public void testHashCode() {
+        assertEquals("Invalid hashcode", Long.valueOf(111).hashCode(), firstEntry.hashCode());
     }
 }

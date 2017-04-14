@@ -20,16 +20,22 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
+import com.groupon.vertx.memcache.client.response.TouchCommandResponse;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.command.MemcacheCommandType;
 
@@ -41,14 +47,15 @@ import com.groupon.vertx.memcache.command.MemcacheCommandType;
  */
 public class MemcacheInputStreamTest {
     private ConcurrentLinkedQueue<MemcacheCommand> pendingCommands = null;
-    private Field bufferPosition = null;
+
+    private Field buffer = null;
 
     @Before
     public void setUp() throws Exception {
         pendingCommands = new ConcurrentLinkedQueue<>();
 
-        bufferPosition = MemcacheInputStream.class.getDeclaredField("bufferPosition");
-        bufferPosition.setAccessible(true);
+        buffer = MemcacheInputStream.class.getDeclaredField("buffer");
+        buffer.setAccessible(true);
     }
 
     @After
@@ -56,7 +63,7 @@ public class MemcacheInputStreamTest {
         pendingCommands.clear();
         pendingCommands = null;
 
-        bufferPosition.setAccessible(false);
+        buffer.setAccessible(false);
     }
 
     @Test
@@ -66,7 +73,7 @@ public class MemcacheInputStreamTest {
         try {
             input.processBuffer(Buffer.buffer());
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -79,7 +86,7 @@ public class MemcacheInputStreamTest {
         try {
             input.processBuffer(null);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -94,7 +101,7 @@ public class MemcacheInputStreamTest {
             buff.appendByte((byte) 'a');
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 1, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 1, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -107,12 +114,11 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, "key", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
-                    assertEquals("Invalid data", MemcacheResponseType.TOUCHED.name(), command.getString("data"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+                assertEquals("Invalid data", MemcacheResponseType.TOUCHED.name(),
+                        ((TouchCommandResponse) response).getData());
             });
 
             pendingCommands.add(command);
@@ -121,7 +127,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("TOUCHED\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -134,12 +140,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "error", command.getString("status"));
-                    assertEquals("Invalid message", "CLIENT ERROR message", command.getString("message"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.error, response.getStatus());
+                assertEquals("Invalid message", "CLIENT ERROR message", response.getMessage());
             });
 
             pendingCommands.add(command);
@@ -148,7 +152,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("CLIENT ERROR message\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -161,12 +165,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "error", command.getString("status"));
-                    assertEquals("Invalid message", "SERVER ERROR message", command.getString("message"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.error, response.getStatus());
+                assertEquals("Invalid message", "SERVER ERROR message", response.getMessage());
             });
 
             pendingCommands.add(command);
@@ -175,7 +177,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("SERVER ERROR message\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -188,12 +190,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.set, "key", "value", null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "error", command.getString("status"));
-                    assertEquals("Invalid message", "ERROR", command.getString("message"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.error, response.getStatus());
+                assertEquals("Invalid message", "ERROR", response.getMessage());
             });
 
             pendingCommands.add(command);
@@ -202,7 +202,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("ERROR\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -215,12 +215,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.delete, "key", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
-                    assertEquals("Invalid data", "DELETED", command.getString("data"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+                assertEquals("Invalid data", "DELETED", ((DeleteCommandResponse) response).getData());
             });
 
             pendingCommands.add(command);
@@ -229,7 +227,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("DELETED\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -242,12 +240,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.incr, "key", "1", null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
-                    assertEquals("Invalid data", null, command.getString("data"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+                assertEquals("Invalid data", null, ((ModifyCommandResponse) response).getData());
             });
 
             pendingCommands.add(command);
@@ -256,7 +252,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("NOT_FOUND\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -269,12 +265,10 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.incr, "key", "1", null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
-                    assertEquals("Invalid data", 2, command.getLong("data").intValue());
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+                assertEquals("Invalid data", Integer.valueOf(2), ((ModifyCommandResponse) response).getData());
             });
 
             pendingCommands.add(command);
@@ -283,7 +277,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("2\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -296,12 +290,11 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
-                    assertEquals("Invalid data", new JsonObject("{\"key\": \"foobar\"}"), command.getJsonObject("data"));
-                }
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+                assertEquals("Invalid data", Collections.singletonMap("key", "foobar"),
+                        ((RetrieveCommandResponse) response).getData());
             });
 
             pendingCommands.add(command);
@@ -310,7 +303,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("VALUE key 0 6\r\nfoobar\r\nEND\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -323,17 +316,15 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key key1", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertNotNull("Invalid command json response", command);
-                    assertEquals("Invalid status", "success", command.getString("status"));
+            command.commandResponseHandler(response -> {
+                assertNotNull("Invalid command json response", response);
+                assertEquals("Invalid status", JsendStatus.success, response.getStatus());
 
-                    JsonObject data = command.getJsonObject("data");
-                    assertNotNull("Missing data", data);
-                    assertEquals("Wrong number of results", 2, data.size());
-                    assertEquals("Invalid data", "foo", data.getString("key"));
-                    assertEquals("Invalid data", "bar", data.getString("key1"));
-                }
+                Map<String, String> data = ((RetrieveCommandResponse) response).getData();
+                assertNotNull("Missing data", data);
+                assertEquals("Wrong number of results", 2, data.size());
+                assertEquals("Invalid data", "foo", data.get("key"));
+                assertEquals("Invalid data", "bar", data.get("key1"));
             });
 
             pendingCommands.add(command);
@@ -342,7 +333,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("VALUE key 0 3\r\nfoo\r\nVALUE key1 0 3\r\nbar\r\nEND\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -355,10 +346,8 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key key1", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertFalse("Command response handler called unexpectedly", true);
-                }
+            command.commandResponseHandler(response -> {
+                assertFalse("Command response handler called unexpectedly", true);
             });
 
             pendingCommands.add(command);
@@ -367,7 +356,7 @@ public class MemcacheInputStreamTest {
             buff.appendString("VALUE key 0 3\r\nfoo\r\nVALUE key1 0 3\r\nbar\r\n");
             input.processBuffer(buff);
 
-            assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
         } catch (Exception ex) {
             assertNull("Unexpected exception: " + ex.getMessage(), ex);
         }
@@ -380,10 +369,8 @@ public class MemcacheInputStreamTest {
         try {
             MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, "key", null, null);
 
-            command.commandResponseHandler(new Handler<JsonObject>() {
-                public void handle(JsonObject command) {
-                    assertFalse("Command response handler called unexpectedly", true);
-                }
+            command.commandResponseHandler(response -> {
+                assertFalse("Command response handler called unexpectedly", true);
             });
 
             pendingCommands.add(command);
@@ -395,10 +382,70 @@ public class MemcacheInputStreamTest {
             assertFalse("Exception did not occur", true);
         } catch (Exception ex) {
             try {
-                assertEquals("Invalid buffer position", 0, bufferPosition.getInt(input));
+                assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
             } catch (Exception exc) {
                 assertNull("Unexpected runtime exception", exc);
             }
+        }
+    }
+
+    @Test
+    public void testTwoBuffersEndLine() {
+        MemcacheInputStream input = new MemcacheInputStream(pendingCommands);
+
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
+
+        command.commandResponseHandler(response -> {
+            assertNotNull("Invalid command json response", command);
+            assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+            assertEquals("Invalid data", "foobar", ((RetrieveCommandResponse) response).getData().get("key"));
+        });
+
+        pendingCommands.add(command);
+
+        Buffer buff = Buffer.buffer();
+        buff.appendString("VALUE key 0 6\r");
+        input.processBuffer(buff);
+        buff = Buffer.buffer();
+        buff.appendString("\nfoobar\r\nEND\r\n");
+        input.processBuffer(buff);
+
+        assertEquals("Invalid pending commands", 0, pendingCommands.size());
+
+        try {
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
+        } catch (Exception exc) {
+            assertNull("Unexpected runtime exception", exc);
+        }
+    }
+
+    @Test
+    public void testTwoBuffersEndLineNext() {
+        MemcacheInputStream input = new MemcacheInputStream(pendingCommands);
+
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
+
+        command.commandResponseHandler(response -> {
+            assertNotNull("Invalid command json response", command);
+            assertEquals("Invalid status", JsendStatus.success, response.getStatus());
+            assertEquals("Invalid data", "foobar", ((RetrieveCommandResponse) response).getData().get("key"));
+        });
+
+        pendingCommands.add(command);
+
+        Buffer buff = Buffer.buffer();
+        buff.appendString("VALUE key 0 6");
+        input.processBuffer(buff);
+        buff = Buffer.buffer();
+        buff.appendString("\r\nfoobar\r\nEND\r\n");
+        input.processBuffer(buff);
+
+        assertEquals("Invalid pending commands", 0, pendingCommands.size());
+
+        try {
+            assertEquals("Invalid buffer position", 0, ((ByteArrayOutputStream) buffer.get(input)).size());
+        } catch (Exception exc) {
+            assertNull("Unexpected runtime exception", exc);
         }
     }
 }

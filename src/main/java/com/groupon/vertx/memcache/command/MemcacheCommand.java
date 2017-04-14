@@ -16,9 +16,9 @@
 package com.groupon.vertx.memcache.command;
 
 import io.vertx.core.Handler;
-import io.vertx.core.json.JsonObject;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.parser.DeleteLineParser;
 import com.groupon.vertx.memcache.parser.LineParser;
 import com.groupon.vertx.memcache.parser.LineParserType;
@@ -42,43 +42,7 @@ public class MemcacheCommand {
     private String value;
     private Integer expires;
     private LineParser parser;
-    private Handler<JsonObject> commandResponseHandler;
-
-    /**
-     * If the command represented by the JsonObject doesn't come in the form:
-     * <br>
-     * <code>
-     * {
-     *   'command': 'SET',
-     *   'key': 'somekey',
-     *   'value': 'somevalue',
-     *   'expires': 300
-     * }
-     * </code>
-     * <br>
-     * Then an exception will be thrown.
-     *
-     * @param commandJson - The command to be created.
-     */
-    public MemcacheCommand(JsonObject commandJson) {
-        if (commandJson == null || commandJson.size() < 2) {
-            log.warn("initMemcacheCommand", "failure", new String[]{"reason"}, "Invalid command format");
-            throw new IllegalArgumentException("Invalid command format");
-        }
-
-        try {
-            type = MemcacheCommandType.valueOf(commandJson.getString("command"));
-        } catch (Exception ex) {
-            log.warn("initMemcacheCommand", "failure", new String[]{"reason"}, "Invalid command");
-            throw new IllegalArgumentException("Invalid or unsupported command provided");
-        }
-
-        setLineParser(type.getLineParserType());
-
-        key = commandJson.getString("key");
-        value = commandJson.getString("value");
-        expires = commandJson.getInteger("expires");
-    }
+    private Handler<MemcacheCommandResponse> commandResponseHandler;
 
     /**
      * A helper method for manually building a command.
@@ -148,33 +112,12 @@ public class MemcacheCommand {
     }
 
     /**
-     * Renders the command into a JsonObject for transport across the event bus.
-     *
-     * @return - A JsonObject containing the command.
-     */
-    public JsonObject toJson() {
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.put("command", type.getCommand());
-        jsonObject.put("key", key);
-
-        if (value != null) {
-            jsonObject.put("value", value);
-        }
-
-        if (expires != null) {
-            jsonObject.put("expires", expires);
-        }
-
-        return jsonObject;
-    }
-
-    /**
      * Calling this method will execute the handler associate with this command.  If no
      * handler is specified the response will be ignored.
      *
      * @param response - The Memcache response for this command.
      */
-    public void setResponse(JsonObject response) {
+    public void setResponse(MemcacheCommandResponse response) {
         if (commandResponseHandler != null) {
             commandResponseHandler.handle(response);
         } else {
@@ -187,7 +130,7 @@ public class MemcacheCommand {
      *
      * @param handler - A handler for the JsonObject Memcache response.
      */
-    public void commandResponseHandler(Handler<JsonObject> handler) {
+    public void commandResponseHandler(Handler<MemcacheCommandResponse> handler) {
         this.commandResponseHandler = handler;
     }
 
