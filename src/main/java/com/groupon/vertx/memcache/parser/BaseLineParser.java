@@ -1,12 +1,12 @@
 /**
  * Copyright 2014 Groupon.com
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,8 +31,8 @@ import com.groupon.vertx.utils.Logger;
  */
 public abstract class BaseLineParser<T extends MemcacheCommandResponse, B extends MemcacheCommandResponse.AbstractBuilder<B, T>> implements LineParser {
     private static final Logger log = Logger.getLogger(BaseLineParser.class);
-    private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
-        MemcacheResponseType.ERROR, MemcacheResponseType.CLIENT_ERROR, MemcacheResponseType.SERVER_ERROR
+    private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[]{
+            MemcacheResponseType.ERROR, MemcacheResponseType.CLIENT_ERROR, MemcacheResponseType.SERVER_ERROR
     };
 
     protected abstract B getResponseBuilder();
@@ -59,7 +59,7 @@ public abstract class BaseLineParser<T extends MemcacheCommandResponse, B extend
         MemcacheResponseType type = null;
         for (MemcacheResponseType responseType : list) {
             if (responseType.matches(line)) {
-                log.trace("getResponseType", "foundType", new String[] {"type"}, responseType);
+                log.trace("getResponseType", "foundType", new String[]{"type"}, responseType);
                 type = responseType;
                 break;
             }
