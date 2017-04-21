@@ -20,10 +20,11 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 
-import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 
 /**
@@ -34,13 +35,19 @@ import com.groupon.vertx.memcache.stream.MemcacheResponseType;
  */
 public class BaseLineParserTest {
 
-    private BaseLineParser parser;
+    private BaseLineParser<MemcacheCommandResponse, MemcacheCommandResponse.Builder> parser;
     private ByteArrayOutputStream outputStream;
 
     @Before
     public void setUp() {
         outputStream = new ByteArrayOutputStream();
-        parser = new BaseLineParser() {
+        parser = new BaseLineParser<MemcacheCommandResponse, MemcacheCommandResponse.Builder>() {
+            private MemcacheCommandResponse.Builder builder = new MemcacheCommandResponse.Builder();
+
+            @Override
+            protected MemcacheCommandResponse.Builder getResponseBuilder() {
+                return builder;
+            }
         };
     }
 
@@ -48,9 +55,9 @@ public class BaseLineParserTest {
     public void testErrorEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
+        MemcacheCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getMessage());
     }
 
     @Test
@@ -58,9 +65,9 @@ public class BaseLineParserTest {
         String clientError = "CLIENT ERROR message";
         outputStream.write(clientError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", clientError, response.getString("message"));
+        MemcacheCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", clientError, response.getMessage());
     }
 
     @Test
@@ -68,15 +75,15 @@ public class BaseLineParserTest {
         String serverError = "SERVER ERROR message";
         outputStream.write(serverError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", serverError, response.getString("message"));
+        MemcacheCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", serverError, response.getMessage());
     }
 
     @Test
-    public void testEmptyGetResponse() throws Exception {
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", "Response returned unexpectedly.", response.getString("message"));
+    public void testEmptyGetResponse() {
+        MemcacheCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", "Response returned unexpectedly.", response.getMessage());
     }
 }

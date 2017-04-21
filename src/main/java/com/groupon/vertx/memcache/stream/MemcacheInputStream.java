@@ -20,8 +20,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import io.netty.buffer.ByteBuf;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.parser.LineParser;
 import com.groupon.vertx.utils.Logger;
@@ -51,7 +51,7 @@ public class MemcacheInputStream {
     private static final Logger log = Logger.getLogger(MemcacheInputStream.class);
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private final ConcurrentLinkedQueue<MemcacheCommand> pendingCommands;
-    private ByteArrayOutputStream buffer;
+    private final ByteArrayOutputStream buffer;
     private byte previous;
 
     /**
@@ -131,10 +131,9 @@ public class MemcacheInputStream {
         }
 
         LineParser parser = command.getLineParser();
-        JsonObject response = parser.getResponse();
+        MemcacheCommandResponse response = parser.getResponse();
 
-        log.trace("processCommand", "redisCommandSuccess", new String[]{"command", "data"}, command.getCommand(),
-                response.getValue("data"));
+        log.trace("processCommand", "redisCommandSuccess", new String[]{"command"}, command.getCommand());
 
         command.setResponse(response);
     }
@@ -142,18 +141,21 @@ public class MemcacheInputStream {
     /**
      * When the crlf sequence has been received from the Buffer it is time to check if we
      * have enough data to complete a command and clear the line off of the current buffer.
-     *
      */
-    protected void addCompletedLine() {
-        previous = 0;
-        if (pendingCommands.size() > 0) {
-            MemcacheCommand command = pendingCommands.peek();
-            LineParser parser = command.getLineParser();
-            if (parser.isResponseEnd(buffer)) {
-                processCommand(pendingCommands.poll());
+    private void addCompletedLine() {
+        try {
+            previous = 0;
+            if (pendingCommands.size() > 0) {
+                MemcacheCommand command = pendingCommands.peek();
+                LineParser parser = command.getLineParser();
+                if (parser.isResponseEnd(buffer)) {
+                    processCommand(pendingCommands.poll());
+                }
+            } else {
+                log.warn("addCompletedLine", "noPendingCommands");
             }
-        } else {
-            log.warn("addCompletedLine", "noPendingCommands");
+        } finally {
+            buffer.reset();
         }
         buffer.reset();
     }

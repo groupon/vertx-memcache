@@ -20,11 +20,12 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 
-import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 
 /**
@@ -47,27 +48,27 @@ public class DeleteLineParserTest {
     public void testDeletedEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.DELETED.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "success", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.DELETED.name(), response.getString("data"));
+        DeleteCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.success, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.DELETED.name(), response.getData());
     }
 
     @Test
     public void testNotFoundEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.NOT_FOUND.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "success", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.NOT_FOUND.name(), response.getString("data"));
+        DeleteCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.success, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.NOT_FOUND.name(), response.getData());
     }
 
     @Test
     public void testErrorEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
+        DeleteCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getMessage());
     }
 
     @Test
@@ -75,9 +76,9 @@ public class DeleteLineParserTest {
         String clientError = "CLIENT ERROR message";
         outputStream.write(clientError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", clientError, response.getString("message"));
+        DeleteCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", clientError, response.getMessage());
     }
 
     @Test
@@ -85,9 +86,9 @@ public class DeleteLineParserTest {
         String serverError = "SERVER ERROR message";
         outputStream.write(serverError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", serverError, response.getString("message"));
+        DeleteCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", serverError, response.getMessage());
     }
 
     @Test

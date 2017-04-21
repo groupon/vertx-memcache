@@ -18,6 +18,8 @@ package com.groupon.vertx.memcache.parser;
 import java.io.ByteArrayOutputStream;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.TouchCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -27,11 +29,22 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class TouchLineParser extends BaseLineParser {
+public class TouchLineParser extends BaseLineParser<TouchCommandResponse, TouchCommandResponse.Builder> {
     private static final Logger log = Logger.getLogger(TouchLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.TOUCHED, MemcacheResponseType.NOT_FOUND
     };
+
+    private TouchCommandResponse.Builder builder;
+
+    public TouchLineParser() {
+        builder = new TouchCommandResponse.Builder();
+    }
+
+    @Override
+    protected TouchCommandResponse.Builder getResponseBuilder() {
+        return builder;
+    }
 
     @Override
     public boolean isResponseEnd(ByteArrayOutputStream line) {
@@ -42,8 +55,8 @@ public class TouchLineParser extends BaseLineParser {
 
         MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
         if (type != null) {
-            response.put("status", "success");
-            response.put("data", type.name());
+            builder.setStatus(JsendStatus.success);
+            builder.setData(type.name());
         } else {
             log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");

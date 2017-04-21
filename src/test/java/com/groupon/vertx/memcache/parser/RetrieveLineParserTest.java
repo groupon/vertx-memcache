@@ -23,12 +23,14 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
+import java.util.Map;
 
-import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 
 /**
@@ -85,11 +87,11 @@ public class RetrieveLineParserTest {
         assertNull("Invalid expected bytes", expectedBytes.get(parser));
         assertEquals("Invalid bytes retrieved", 0, bytesRetrieved.getInt(parser));
 
-        JsonObject response = parser.getResponse();
-        assertNull("Wrong status", response.getString("status"));
+        RetrieveCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
 
-        JsonObject data = response.getJsonObject("data");
-        assertEquals("Value not parsed", "test", data.getString("key"));
+        Map<String, String> data = response.getData();
+        assertEquals("Value not parsed", "test", data.get("key"));
     }
 
     @Test
@@ -105,20 +107,20 @@ public class RetrieveLineParserTest {
         assertNull("Invalid expected bytes", expectedBytes.get(parser));
         assertEquals("Invalid bytes retrieved", 0, bytesRetrieved.getInt(parser));
 
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "success", response.getString("status"));
+        RetrieveCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.success, response.getStatus());
 
-        JsonObject data = response.getJsonObject("data");
-        assertEquals("Value not parsed", "test", data.getString("key"));
+        Map<String, String> data = response.getData();
+        assertEquals("Value not parsed", "test", data.get("key"));
     }
 
     @Test
     public void testErrorEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
+        RetrieveCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getMessage());
     }
 
     @Test
@@ -126,9 +128,9 @@ public class RetrieveLineParserTest {
         String clientError = "CLIENT ERROR message";
         outputStream.write(clientError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", clientError, response.getString("message"));
+        RetrieveCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", clientError, response.getMessage());
     }
 
     @Test
@@ -136,9 +138,9 @@ public class RetrieveLineParserTest {
         String serverError = "SERVER ERROR message";
         outputStream.write(serverError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", serverError, response.getString("message"));
+        RetrieveCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", serverError, response.getMessage());
     }
 
     @Test
@@ -169,9 +171,8 @@ public class RetrieveLineParserTest {
     @Test
     public void testInvalidLine() throws Exception {
         try {
-            ByteArrayOutputStream start = new ByteArrayOutputStream();
-            start.write("foo".getBytes());
-            parser.isResponseEnd(start);
+            outputStream.write("foo".getBytes());
+            parser.isResponseEnd(outputStream);
             assertTrue("Failed to throw exception", false);
         } catch (MemcacheException me) {
             assertEquals("Unexpected exception", "Unexpected format in response", me.getMessage());

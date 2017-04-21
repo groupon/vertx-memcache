@@ -18,6 +18,8 @@ package com.groupon.vertx.memcache.parser;
 import java.io.ByteArrayOutputStream;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.StoreCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -27,12 +29,23 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class StoreLineParser extends BaseLineParser {
+public class StoreLineParser extends BaseLineParser<StoreCommandResponse, StoreCommandResponse.Builder> {
     private static final Logger log = Logger.getLogger(StoreLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.STORED, MemcacheResponseType.NOT_STORED, MemcacheResponseType.EXISTS,
         MemcacheResponseType.NOT_FOUND
     };
+
+    private StoreCommandResponse.Builder builder;
+
+    public StoreLineParser() {
+        builder = new StoreCommandResponse.Builder();
+    }
+
+    @Override
+    protected StoreCommandResponse.Builder getResponseBuilder() {
+        return builder;
+    }
 
     @Override
     public boolean isResponseEnd(ByteArrayOutputStream line) {
@@ -43,8 +56,8 @@ public class StoreLineParser extends BaseLineParser {
 
         MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
         if (type != null) {
-            response.put("status", "success");
-            response.put("data", type.name());
+            builder.setStatus(JsendStatus.success);
+            builder.setData(type.name());
             return true;
         } else {
             log.error("isResponseEnd", "exception", "invalidFormat", new String[] {"line"}, getMessageNullIfError(line));

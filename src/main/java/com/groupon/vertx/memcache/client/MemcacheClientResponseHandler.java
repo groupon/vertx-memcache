@@ -19,9 +19,9 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonObject;
 
 import com.groupon.vertx.memcache.MemcacheUnavailableException;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
 import com.groupon.vertx.utils.Logger;
 
 /**
@@ -31,15 +31,17 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class MemcacheClientResponseHandler implements Handler<AsyncResult<Message<JsonObject>>> {
+public class MemcacheClientResponseHandler<T extends MemcacheCommandResponse> implements Handler<AsyncResult<Message<T>>> {
     private static final Logger log = Logger.getLogger(MemcacheClientResponseHandler.class);
 
-    private Future<JsonObject> result;
+    private Future<T> result;
 
-    public MemcacheClientResponseHandler(Future<JsonObject> result) {
+    public MemcacheClientResponseHandler(Future<T> result) {
         this.result = result;
     }
-    public void handle(AsyncResult<Message<JsonObject>> message) {
+
+    @Override
+    public void handle(AsyncResult<Message<T>> message) {
         if (message.succeeded()) {
             result.complete(message.result().body());
         } else {

@@ -15,14 +15,16 @@
  */
 package com.groupon.vertx.memcache.client;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
 import com.groupon.vertx.utils.Logger;
 
 /**
@@ -32,23 +34,22 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class MemcacheClientMultiResponseHandler implements Handler<AsyncResult<JsonObject>> {
+public class MemcacheClientMultiResponseHandler implements Handler<AsyncResult<RetrieveCommandResponse>> {
     private static final Logger log = Logger.getLogger(MemcacheClientMultiResponseHandler.class);
 
-    private final Future<JsonObject> result;
+    private final Future<RetrieveCommandResponse> result;
     private final AtomicInteger counter;
-    private final JsonArray successResults;
-    private final JsonArray errorResults;
+    private final RetrieveCommandResponse.Builder builder;
+    private final List<String> errors;
 
     private int success = 0;
     private int failure = 0;
-    private int error = 0;
 
-    public MemcacheClientMultiResponseHandler(Future<JsonObject> result, int totalCommands) {
+    public MemcacheClientMultiResponseHandler(Future<RetrieveCommandResponse> result, int totalCommands) {
         this.result = result;
         this.counter = new AtomicInteger(totalCommands);
-        this.successResults = new JsonArray();
-        this.errorResults = new JsonArray();
+        this.builder = new RetrieveCommandResponse.Builder();
+        this.errors = new ArrayList<>();
     }
 
     /**
@@ -56,28 +57,29 @@ public class MemcacheClientMultiResponseHandler implements Handler<AsyncResult<J
      *
      * @param command - The JsonObject containing the command and arguments to send to Memcache.
      */
-    public void handle(final AsyncResult<JsonObject> command) {
+    public void handle(final AsyncResult<RetrieveCommandResponse> command) {
         if (command.succeeded()) {
-            JsonObject body = command.result();
-            if (body == null || body.size() == 0) {
+            RetrieveCommandResponse body = command.result();
+            if (body == null) {
                 log.warn("handleCommand", "queueFailure", new String[]{"reason"}, "Missing message body");
                 failure++;
             } else {
                 log.trace("handleCommand", "queueReply", new String[]{"response"}, body);
-                String status = body.getString("status");
-                if ("success".equals(status)) {
-                    JsonObject data = body.getJsonObject("data");
-                    if (data != null) {
-                        successResults.add(data);
-                    } else {
-                        successResults.addNull();
-                    }
-                    success++;
-                } else if ("fail".equals(status)) {
-                    failure++;
-                } else {
-                    errorResults.add(body.getString("message"));
-                    error++;
+                switch (body.getStatus()) {
+                    case success:
+                        for (Map.Entry<String, String> entry : body.getData().entrySet()) {
+                            builder.addData(entry.getKey(), entry.getValue());
+                        }
+                        success++;
+                        break;
+                    case fail:
+                        failure++;
+                        break;
+                    default:
+                        if (body.getMessage() != null) {
+                            errors.add(body.getMessage());
+                        }
+                        break;
                 }
             }
         } else {
@@ -90,23 +92,14 @@ public class MemcacheClientMultiResponseHandler implements Handler<AsyncResult<J
         }
     }
 
-    private JsonObject buildReply() {
-        JsonObject reply = new JsonObject();
-
-        if ((failure + error) == 0 || success > 0) {
-            reply.put("status", "success");
-            JsonObject data = new JsonObject();
-            for (int i = 0; i < successResults.size(); i++) {
-                if (successResults.getJsonObject(i) != null) {
-                    data.mergeIn(successResults.getJsonObject(i));
-                }
-            }
-            reply.put("data", data);
+    private RetrieveCommandResponse buildReply() {
+        if ((failure + errors.size()) == 0 || success > 0) {
+            builder.setStatus(JsendStatus.success);
         } else {
-            reply.put("status", "error");
-            reply.put("data", errorResults);
+            builder.setStatus(JsendStatus.error);
+            builder.setMessage(String.join(", ", errors));
         }
 
-        return reply;
+        return builder.build();
     }
 }

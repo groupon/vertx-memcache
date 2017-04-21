@@ -21,11 +21,12 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 
-import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 
 /**
@@ -49,9 +50,9 @@ public class ModifyLineParserTest {
         outputStream.write("12345".getBytes());
         assertTrue("Failed to parse value", parser.isResponseEnd(outputStream));
 
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "success", response.getString("status"));
-        assertEquals("Value not parsed", 12345, (int) response.getInteger("data"));
+        ModifyCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.success, response.getStatus());
+        assertEquals("Value not parsed", Integer.valueOf(12345), response.getData());
     }
 
     @Test
@@ -70,18 +71,18 @@ public class ModifyLineParserTest {
         outputStream.write(MemcacheResponseType.NOT_FOUND.type.getBytes());
         assertTrue("Failed to parse value", parser.isResponseEnd(outputStream));
 
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "success", response.getString("status"));
-        assertNull("Value should be null", response.getString("data"));
+        ModifyCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.success, response.getStatus());
+        assertNull("Value should be null", response.getData());
     }
 
     @Test
     public void testErrorEndLine() throws Exception {
         outputStream.write(MemcacheResponseType.ERROR.type.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getString("message"));
+        ModifyCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", MemcacheResponseType.ERROR.name(), response.getMessage());
     }
 
     @Test
@@ -89,9 +90,9 @@ public class ModifyLineParserTest {
         String clientError = "CLIENT ERROR message";
         outputStream.write(clientError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", clientError, response.getString("message"));
+        ModifyCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", clientError, response.getMessage());
     }
 
     @Test
@@ -99,9 +100,9 @@ public class ModifyLineParserTest {
         String serverError = "SERVER ERROR message";
         outputStream.write(serverError.getBytes());
         assertTrue("Failed to identify end", parser.isResponseEnd(outputStream));
-        JsonObject response = parser.getResponse();
-        assertEquals("Wrong status", "error", response.getString("status"));
-        assertEquals("Wrong data", serverError, response.getString("message"));
+        ModifyCommandResponse response = parser.getResponse();
+        assertEquals("Wrong status", JsendStatus.error, response.getStatus());
+        assertEquals("Wrong data", serverError, response.getMessage());
     }
 
     @Test

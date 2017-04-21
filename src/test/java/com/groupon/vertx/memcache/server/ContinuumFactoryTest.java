@@ -69,4 +69,16 @@ public class ContinuumFactoryTest implements MemcacheKeys {
         assertTrue("Wrong continuum type", continuum instanceof KetamaContinuum);
         assertEquals("Wrong server count", 8, continuum.getServerContinuum().size());
     }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testNoServers() {
+        JsonObject tmpConfig = new JsonObject();
+        tmpConfig.put(SERVERS_KEY, new JsonArray());
+        tmpConfig.put(ALGORITHM_KEY, HashAlgorithm.FNV1_32_HASH.name());
+        tmpConfig.put(CONTINUUM_KEY, ContinuumType.KETAMA.name());
+        tmpConfig.put(EVENT_BUS_ADDRESS_KEY, "address");
+        tmpConfig.put(POINTS_PER_SERVER, 1);
+
+        ContinuumFactory.create(new MemcacheConfig(tmpConfig));
+    }
 }

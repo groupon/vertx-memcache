@@ -35,43 +35,43 @@ public class MemcacheResponseTypeTest {
     private ByteArrayOutputStream outputStream;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         outputStream = new ByteArrayOutputStream();
     }
 
     @Test
     public void testMatchExactSuccess() throws Exception {
-        outputStream.write("STORED".getBytes());
+        outputStream.write("STORED".getBytes(encoding));
         assertTrue("Exact match should have succeeded", MemcacheResponseType.STORED.matches(outputStream));
     }
 
     @Test
     public void testMatchExcactFailure() throws Exception {
-        outputStream.write("STORE".getBytes());
+        outputStream.write("STORE".getBytes(encoding));
         assertFalse("Exact match should have failed", MemcacheResponseType.STORED.matches(outputStream));
     }
 
     @Test
     public void testMatchNonExactSuccess() throws Exception {
-        outputStream.write("VALUE ".getBytes());
+        outputStream.write("VALUE ".getBytes(encoding));
         assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches(outputStream));
     }
 
     @Test
     public void testMatchNonExactDifferentLengthSuccess() throws Exception {
-        outputStream.write("VALUE EXTRA".getBytes());
+        outputStream.write("VALUE EXTRA".getBytes(encoding));
         assertTrue("Partial match should have succeeded", MemcacheResponseType.VALUE.matches(outputStream));
     }
 
     @Test
     public void testMatchNonExcactFailure() throws Exception {
-        outputStream.write("NOTIT".getBytes());
+        outputStream.write("NOTIT".getBytes(encoding));
         assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches(outputStream));
     }
 
     @Test
     public void testMatchNonExcactDifferentLengthsFailure() throws Exception {
-        outputStream.write("VALU".getBytes());
+        outputStream.write("VALU".getBytes(encoding));
         assertFalse("Exact match should have failed", MemcacheResponseType.VALUE.matches(outputStream));
     }
 }

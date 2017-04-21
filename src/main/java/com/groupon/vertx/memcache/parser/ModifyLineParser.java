@@ -19,6 +19,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -28,11 +30,22 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class ModifyLineParser extends BaseLineParser {
+public class ModifyLineParser extends BaseLineParser<ModifyCommandResponse, ModifyCommandResponse.Builder> {
     private static final Logger log = Logger.getLogger(ModifyLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.NOT_FOUND
     };
+
+    private ModifyCommandResponse.Builder builder;
+
+    public ModifyLineParser() {
+        builder = new ModifyCommandResponse.Builder();
+    }
+
+    @Override
+    protected ModifyCommandResponse.Builder getResponseBuilder() {
+        return builder;
+    }
 
     @Override
     public boolean isResponseEnd(ByteArrayOutputStream line) {
@@ -43,8 +56,8 @@ public class ModifyLineParser extends BaseLineParser {
 
         MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
         if (type != null) {
-            response.put("status", "success");
-            response.putNull("data");
+            builder.setStatus(JsendStatus.success);
+            builder.setData(null);
             return true;
         } else {
             return parseModifiedValue(line);
@@ -54,8 +67,8 @@ public class ModifyLineParser extends BaseLineParser {
     private boolean parseModifiedValue(ByteArrayOutputStream line) {
         try {
             int data = Integer.parseInt(line.toString(ENCODING));
-            response.put("status", "success");
-            response.put("data", data);
+            builder.setStatus(JsendStatus.success);
+            builder.setData(data);
         } catch (NumberFormatException | UnsupportedEncodingException nfe) {
             log.error("parseModifiedValue", "exception", "unexpectedFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");

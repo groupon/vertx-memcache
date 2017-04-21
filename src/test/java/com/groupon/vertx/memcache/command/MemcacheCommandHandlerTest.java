@@ -16,6 +16,7 @@
 package com.groupon.vertx.memcache.command;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.stub;
@@ -24,8 +25,6 @@ import static org.mockito.Mockito.verify;
 
 import java.lang.reflect.Field;
 
-import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +32,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.groupon.vertx.memcache.TestMessage;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.MemcacheCommandResponse;
+import com.groupon.vertx.memcache.client.response.StoreCommandResponse;
 import com.groupon.vertx.memcache.parser.StoreLineParser;
 import com.groupon.vertx.memcache.stream.MemcacheSocket;
 
@@ -48,24 +51,22 @@ public class MemcacheCommandHandlerTest {
     private NetSocket socket;
 
     @Mock
-    private Message<JsonObject> message;
-
-    @Mock
-    private JsonObject bogusJson;
-
-    @Mock
     private MemcacheSocket memcacheSocket;
 
-    private JsonObject errorReply = new JsonObject("{\"status\":\"error\",\"message\":\"Invalid message with null or empty.\"}");
-    private MemcacheCommandHandler handler;
+    private TestMessage<MemcacheCommand> message;
 
-    private Field tempField = null;
+    private MemcacheCommandResponse errorReply = new MemcacheCommandResponse.Builder()
+            .setStatus(JsendStatus.error)
+            .setMessage("Invalid message with null or empty.")
+            .build();
+
+    private MemcacheCommandHandler handler;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        tempField = MemcacheCommandHandler.class.getDeclaredField("socket");
+        Field tempField = MemcacheCommandHandler.class.getDeclaredField("socket");
         tempField.setAccessible(true);
 
         handler = new MemcacheCommandHandler(socket);
@@ -76,25 +77,22 @@ public class MemcacheCommandHandlerTest {
 
     @Test
     public void testHandleNullBody() {
+        message = new TestMessage<>(null);
         stub(message.body()).toReturn(null);
 
         handler.handle(message);
 
-        verify(message, times(1)).reply(errorReply);
-    }
-
-    @Test
-    public void testHandleEmptyBody() {
-        stub(message.body()).toReturn(new JsonObject());
-
-        handler.handle(message);
-
-        verify(message, times(1)).reply(errorReply);
+        MemcacheCommandResponse response = (MemcacheCommandResponse) message.getReply();
+        assertNotNull(response);
+        assertEquals(response.getStatus(), errorReply.getStatus());
+        assertEquals(response.getMessage(), errorReply.getMessage());
     }
 
     @Test
     public void testHandleCommand() {
-        stub(message.body()).toReturn(new JsonObject("{\"command\":\"set\",\"key\":\"somekey\",\"value\":\"somevalue\",\"expires\":300}"));
+        message = new TestMessage<>(
+                new MemcacheCommand(MemcacheCommandType.set, "somekey", "somevalue", 300)
+        );
 
         handler.handle(message);
 
@@ -109,19 +107,34 @@ public class MemcacheCommandHandlerTest {
         assertEquals("Invalid expires", 300, (int) command.getExpires());
         assertTrue("Invalid line parser", command.getLineParser() instanceof StoreLineParser);
 
-        JsonObject testObject = new JsonObject("{\"status\":\"success\"}");
-        command.setResponse(testObject);
+        StoreCommandResponse response = new StoreCommandResponse.Builder().setStatus(JsendStatus.success).build();
+        command.setResponse(response);
 
-        verify(message, times(1)).reply(testObject);
+        StoreCommandResponse reply = (StoreCommandResponse) message.getReply();
+        assertNotNull(reply);
+        assertEquals(reply.getStatus(), response.getStatus());
+        assertEquals(reply.getData(), response.getData());
     }
 
     @Test
     public void testHandleCommandError() {
-        stub(message.body()).toReturn(new JsonObject("{\"command\":\"set\"}"));
+        message = new TestMessage<>(new MemcacheCommand(MemcacheCommandType.set, "key", "value", null));
 
         handler.handle(message);
 
-        verify(message, times(1)).reply(new JsonObject("{\"status\":\"error\",\"message\":\"Invalid command format\"}"));
+        ArgumentCaptor<MemcacheCommand> commandCaptor = ArgumentCaptor.forClass(MemcacheCommand.class);
+        verify(memcacheSocket, times(1)).sendCommand(commandCaptor.capture());
+
+        StoreCommandResponse response = new StoreCommandResponse.Builder()
+                .setStatus(JsendStatus.error)
+                .setMessage("Invalid command format")
+                .build();
+        commandCaptor.getValue().setResponse(response);
+
+        MemcacheCommandResponse reply = (MemcacheCommandResponse) message.getReply();
+        assertNotNull(reply);
+        assertEquals(reply.getStatus(), response.getStatus());
+        assertEquals(reply.getMessage(), response.getMessage());
     }
 
     @Test

@@ -20,9 +20,13 @@ import java.util.Collection;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.json.JsonObject;
 
 import com.groupon.vertx.memcache.MemcacheConfig;
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
+import com.groupon.vertx.memcache.client.response.ModifyCommandResponse;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
+import com.groupon.vertx.memcache.client.response.StoreCommandResponse;
+import com.groupon.vertx.memcache.client.response.TouchCommandResponse;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.command.MemcacheCommandType;
 import com.groupon.vertx.memcache.server.Continuum;
@@ -54,40 +58,40 @@ public class MemcacheClient {
         continuum = ContinuumFactory.create(config);
     }
 
-    public Future<JsonObject> incr(String key, long value) {
+    public Future<ModifyCommandResponse> incr(String key, long value) {
         return modify(MemcacheCommandType.incr, key, String.valueOf(value));
     }
 
-    public Future<JsonObject> decr(String key, long value) {
+    public Future<ModifyCommandResponse> decr(String key, long value) {
         return modify(MemcacheCommandType.decr, key, String.valueOf(value));
     }
 
-    public Future<JsonObject> set(String key, String data, int expires) {
+    public Future<StoreCommandResponse> set(String key, String data, int expires) {
         return store(MemcacheCommandType.set, key, data, expires);
     }
 
-    public Future<JsonObject> add(String key, String data, int expires) {
+    public Future<StoreCommandResponse> add(String key, String data, int expires) {
         return store(MemcacheCommandType.add, key, data, expires);
     }
 
-    public Future<JsonObject> replace(String key, String data, int expires) {
+    public Future<StoreCommandResponse> replace(String key, String data, int expires) {
         return store(MemcacheCommandType.replace, key, data, expires);
     }
 
-    public Future<JsonObject> append(String key, String data) {
+    public Future<ModifyCommandResponse> append(String key, String data) {
         return modify(MemcacheCommandType.append, key, data);
     }
 
-    public Future<JsonObject> prepend(String key, String data) {
+    public Future<ModifyCommandResponse> prepend(String key, String data) {
         return modify(MemcacheCommandType.prepend, key, data);
     }
 
-    public Future<JsonObject> get(String key) {
+    public Future<RetrieveCommandResponse> get(String key) {
         return retrieve(MemcacheCommandType.get, key);
     }
 
-    public Future<JsonObject> get(Collection<String> keys) {
-        Future<JsonObject> finalResult = Future.future();
+    public Future<RetrieveCommandResponse> get(Collection<String> keys) {
+        Future<RetrieveCommandResponse> finalResult = Future.future();
 
         MemcacheClientMultiResponseHandler handleWrapper = new MemcacheClientMultiResponseHandler(finalResult, keys.size());
         for (String key : keys) {
@@ -97,28 +101,28 @@ public class MemcacheClient {
         return finalResult;
     }
 
-    public Future<JsonObject> delete(String key) {
-        Future<JsonObject> finalResult = Future.future();
+    public Future<DeleteCommandResponse> delete(String key) {
+        Future<DeleteCommandResponse> finalResult = Future.future();
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.delete, getCacheKey(key), null, null);
 
         final DeliveryOptions deliveryOptions = new DeliveryOptions()
                 .setSendTimeout(INFINITE_REPLY_TIMEOUT);
-        eventBus.send(getEventBusAddress(key), command.toJson(), deliveryOptions,
-                new MemcacheClientResponseHandler(finalResult));
+        eventBus.send(getEventBusAddress(key), command, deliveryOptions,
+                new MemcacheClientResponseHandler<>(finalResult));
 
         return finalResult;
     }
 
-    public Future<JsonObject> touch(String key, int expires) {
-        Future<JsonObject> finalResult = Future.future();
+    public Future<TouchCommandResponse> touch(String key, int expires) {
+        Future<TouchCommandResponse> finalResult = Future.future();
 
         MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.touch, getCacheKey(key), null, expires);
 
         final DeliveryOptions deliveryOptions = new DeliveryOptions()
                 .setSendTimeout(INFINITE_REPLY_TIMEOUT);
-        eventBus.send(getEventBusAddress(key), command.toJson(), deliveryOptions,
-                new MemcacheClientResponseHandler(finalResult));
+        eventBus.send(getEventBusAddress(key), command, deliveryOptions,
+                new MemcacheClientResponseHandler<>(finalResult));
 
         return finalResult;
     }
@@ -127,41 +131,41 @@ public class MemcacheClient {
         return this.namespace;
     }
 
-    private Future<JsonObject> retrieve(MemcacheCommandType commandType, String key) {
-        Future<JsonObject> finalResult = Future.future();
+    private Future<RetrieveCommandResponse> retrieve(MemcacheCommandType commandType, String key) {
+        Future<RetrieveCommandResponse> finalResult = Future.future();
 
         MemcacheCommand command = new MemcacheCommand(commandType, getCacheKey(key), null, null);
 
         final DeliveryOptions deliveryOptions = new DeliveryOptions()
                 .setSendTimeout(INFINITE_REPLY_TIMEOUT);
-        eventBus.send(getEventBusAddress(key), command.toJson(), deliveryOptions,
+        eventBus.send(getEventBusAddress(key), command, deliveryOptions,
                 new TranslateKeyResponseHandler(finalResult, key, command.getKey()));
 
         return finalResult;
     }
 
-    private Future<JsonObject> modify(MemcacheCommandType commandType, String key, String data) {
-        Future<JsonObject> finalResult = Future.future();
+    private Future<ModifyCommandResponse> modify(MemcacheCommandType commandType, String key, String data) {
+        Future<ModifyCommandResponse> finalResult = Future.future();
 
         MemcacheCommand command = new MemcacheCommand(commandType, getCacheKey(key), data, null);
 
         final DeliveryOptions deliveryOptions = new DeliveryOptions()
                 .setSendTimeout(INFINITE_REPLY_TIMEOUT);
-        eventBus.send(getEventBusAddress(key), command.toJson(), deliveryOptions,
-                new MemcacheClientResponseHandler(finalResult));
+        eventBus.send(getEventBusAddress(key), command, deliveryOptions,
+                new MemcacheClientResponseHandler<>(finalResult));
 
         return finalResult;
     }
 
-    private Future<JsonObject> store(MemcacheCommandType commandType, String key, String data, int expires) {
-        Future<JsonObject> finalResult = Future.future();
+    private Future<StoreCommandResponse> store(MemcacheCommandType commandType, String key, String data, int expires) {
+        Future<StoreCommandResponse> finalResult = Future.future();
 
         MemcacheCommand command = new MemcacheCommand(commandType, getCacheKey(key), data, expires);
 
         final DeliveryOptions deliveryOptions = new DeliveryOptions()
                 .setSendTimeout(INFINITE_REPLY_TIMEOUT);
-        eventBus.send(getEventBusAddress(key), command.toJson(), deliveryOptions,
-                new MemcacheClientResponseHandler(finalResult));
+        eventBus.send(getEventBusAddress(key), command, deliveryOptions,
+                new MemcacheClientResponseHandler<>(finalResult));
 
         return finalResult;
     }

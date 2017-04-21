@@ -17,7 +17,6 @@ package com.groupon.vertx.memcache.stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -26,7 +25,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetSocket;
 import org.junit.After;
 import org.junit.Before;
@@ -36,6 +34,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.groupon.vertx.memcache.client.JsendStatus;
 import com.groupon.vertx.memcache.command.MemcacheCommand;
 import com.groupon.vertx.memcache.command.MemcacheCommandType;
 
@@ -138,13 +137,17 @@ public class MemcacheSocketTest {
 
     @Test
     public void testClose() {
-        MemcacheCommand command = mock(MemcacheCommand.class);
+        MemcacheCommand command = new MemcacheCommand(MemcacheCommandType.get, "key", null, null);
 
         pendingCommands.add(command);
 
         memcacheSocket.close();
 
-        verify(command, times(1)).setResponse(new JsonObject("{\"status\":\"error\",\"message\":\"Socket closed unexpectedly\"}"));
+        command.commandResponseHandler(response -> {
+            assertEquals(JsendStatus.error, response.getStatus());
+            assertEquals("Socket closed unexpectedly", response.getMessage());
+        });
+
         verify(netSocket, times(1)).close();
     }
 }

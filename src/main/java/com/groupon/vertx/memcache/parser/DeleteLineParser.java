@@ -18,6 +18,8 @@ package com.groupon.vertx.memcache.parser;
 import java.io.ByteArrayOutputStream;
 
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.DeleteCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -27,11 +29,22 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class DeleteLineParser extends BaseLineParser {
+public class DeleteLineParser extends BaseLineParser<DeleteCommandResponse, DeleteCommandResponse.Builder> {
     private static final Logger log = Logger.getLogger(DeleteLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.DELETED, MemcacheResponseType.NOT_FOUND
     };
+
+    private DeleteCommandResponse.Builder builder;
+
+    public DeleteLineParser() {
+        builder = new DeleteCommandResponse.Builder();
+    }
+
+    @Override
+    protected DeleteCommandResponse.Builder getResponseBuilder() {
+        return builder;
+    }
 
     @Override
     public boolean isResponseEnd(ByteArrayOutputStream line) {
@@ -42,8 +55,8 @@ public class DeleteLineParser extends BaseLineParser {
 
         MemcacheResponseType type = getResponseType(RESPONSE_TYPES, line);
         if (type != null) {
-            response.put("status", "success");
-            response.put("data", type.name());
+            builder.setStatus(JsendStatus.success);
+            builder.setData(type.name());
         } else {
             log.error("isResponseEnd", "exception", "unexpectedFormat", new String[] {"line"}, getMessageNullIfError(line));
             throw new MemcacheException("Unexpected format in response");

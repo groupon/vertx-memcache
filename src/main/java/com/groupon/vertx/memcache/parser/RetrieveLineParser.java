@@ -19,9 +19,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 
-import io.vertx.core.json.JsonObject;
-
 import com.groupon.vertx.memcache.MemcacheException;
+import com.groupon.vertx.memcache.client.JsendStatus;
+import com.groupon.vertx.memcache.client.response.RetrieveCommandResponse;
 import com.groupon.vertx.memcache.stream.MemcacheResponseType;
 import com.groupon.vertx.utils.Logger;
 
@@ -31,7 +31,7 @@ import com.groupon.vertx.utils.Logger;
  * @author Stuart Siegrist (fsiegrist at groupon dot com)
  * @since 1.0.0
  */
-public class RetrieveLineParser extends BaseLineParser {
+public class RetrieveLineParser extends BaseLineParser<RetrieveCommandResponse, RetrieveCommandResponse.Builder> {
     private static final Logger log = Logger.getLogger(RetrieveLineParser.class);
     private static final MemcacheResponseType[] RESPONSE_TYPES = new MemcacheResponseType[] {
         MemcacheResponseType.VALUE, MemcacheResponseType.END
@@ -44,6 +44,17 @@ public class RetrieveLineParser extends BaseLineParser {
     private byte[] expectedBytes;
     private int bytesRetrieved = 0;
 
+    private RetrieveCommandResponse.Builder builder;
+
+    public RetrieveLineParser() {
+        builder = new RetrieveCommandResponse.Builder();
+    }
+
+    @Override
+    protected RetrieveCommandResponse.Builder getResponseBuilder() {
+        return builder;
+    }
+
     @Override
     public boolean isResponseEnd(ByteArrayOutputStream line) {
         boolean match = super.isResponseEnd(line);
@@ -55,7 +66,7 @@ public class RetrieveLineParser extends BaseLineParser {
         if (type != null) {
             switch (type) {
                 case END:
-                    response.put("status", "success");
+                    builder.setStatus(JsendStatus.success);
                     match = true;
                     break;
                 case VALUE:
@@ -108,12 +119,7 @@ public class RetrieveLineParser extends BaseLineParser {
 
         // We have finished collecting the value.
         if (bytesRetrieved == expectedBytes.length) {
-            JsonObject data = response.getJsonObject("data");
-            if (data == null) {
-                data = new JsonObject();
-                response.put("data", data);
-            }
-            data.put(expectedKey, new String(expectedBytes, Charset.forName(ENCODING)));
+            builder.addData(expectedKey, new String(expectedBytes, Charset.forName(ENCODING)));
             clearExpected();
         }
     }
