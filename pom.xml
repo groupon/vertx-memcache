@@ -27,7 +27,7 @@
   <artifactId>vertx-memcache</artifactId>
   <packaging>jar</packaging>
   <name>Vertx Memcache Library</name>
-  <version>4.0.1-SNAPSHOT</version>
+  <version>4.0.1</version>
   <url>https://github.com/groupon/vertx-redis</url>
 
   <licenses>
@@ -80,7 +80,7 @@
     <connection>scm:git:git@github.com:groupon/vertx-memcache.git</connection>
     <developerConnection>scm:git:git@github.com:groupon/vertx-memcache.git</developerConnection>
     <url>https://github.com/groupon/vertx-memcache</url>
-    <tag>HEAD</tag>
+    <tag>vertx-memcache-4.0.1</tag>
   </scm>
 
   <properties>
