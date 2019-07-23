@@ -85,8 +85,8 @@
 
   <properties>
     <!--Vertx dependency versions-->
-    <vertx.version>3.4.1</vertx.version>
-    <vertx.utils.version>3.0.1</vertx.utils.version>
+    <vertx.version>3.5.4</vertx.version>
+    <vertx.utils.version>3.4.1</vertx.utils.version>
 
     <!--Other dependency versions-->
     <junit.version>4.12</junit.version>
